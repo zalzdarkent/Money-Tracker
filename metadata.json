@@ -1,0 +1,6 @@
+{
+  "name": "AI Personal Expense Tracker",
+  "description": "Aplikasi pencatatan pengeluaran otomatis berbasis AI Gemini, n8n webhook automation, dan Google Sheets dengan UI modern.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
