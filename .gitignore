@@ -6,3 +6,4 @@ coverage/
 *.log
 .env*
 !.env.example
+deteksi-apd-413567e7d94c.json

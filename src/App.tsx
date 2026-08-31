@@ -261,7 +261,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-4 text-xs">
                   <span className="text-[10px] text-zinc-500 font-mono">
-                    ENDPOINT: POST /webhook-test/catat-keuangan
+                    ENDPOINT: POST /webhook/catat-keuangan
                   </span>
                 </div>
               </div>

@@ -1,0 +1,17 @@
+allowBuilds:
+  '@confluentinc/kafka-javascript': true
+  '@google/genai': true
+  '@parcel/watcher': true
+  '@scarf/scarf': true
+  '@sentry/node-cpu-profiler': true
+  '@sentry/node-native-stacktrace': true
+  agent-browser: true
+  cpu-features: true
+  esbuild: true
+  isolated-vm: true
+  msgpackr-extract: true
+  oracledb: true
+  protobufjs: true
+  sqlite3: true
+  ssh2: true
+  vue-demi: true

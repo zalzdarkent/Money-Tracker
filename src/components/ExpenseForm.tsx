@@ -30,7 +30,7 @@ interface ExpenseFormProps {
 export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
   const [inputText, setInputText] = useState("");
   const [webhookUrl, setWebhookUrl] = useState(
-    (import.meta as any).env?.VITE_N8N_WEBHOOK_URL || "http://localhost:5678/webhook-test/catat-keuangan"
+    (import.meta as any).env?.VITE_N8N_WEBHOOK_URL || "/webhook/catat-keuangan"
   );
   const [executionMode, setExecutionMode] = useState<"webhook" | "direct_ai">("webhook");
   const [loading, setLoading] = useState(false);
@@ -101,7 +101,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
 
           setErrorInfo({
             message: isNetworkError
-              ? `Tidak dapat terhubung ke webhook n8n di ${webhookUrl}. Pastikan n8n sedang berjalan (running) di localhost:5678, webhook path aktif (klik 'Listen for Test Event'), dan CORS sudah diizinkan.`
+              ? `Tidak dapat terhubung ke webhook n8n di ${webhookUrl}. Pastikan n8n sedang berjalan, workflow sudah diaktifkan untuk URL production, dan CORS sudah diizinkan.`
               : fetchErr.message || "Gagal mengirim data ke n8n webhook.",
             isCorsOrNetwork: isNetworkError,
           });
@@ -221,16 +221,14 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
                   <Input
                     value={webhookUrl}
                     onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="http://localhost:5678/webhook-test/catat-keuangan"
+                    placeholder="http://localhost:5678/webhook/catat-keuangan"
                     className="text-xs font-mono"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      setWebhookUrl("http://localhost:5678/webhook-test/catat-keuangan")
-                    }
+                    onClick={() => setWebhookUrl("/webhook/catat-keuangan") }
                     className="text-xs shrink-0 border-[#27272a] bg-[#18181b]"
                     title="Reset to default test webhook"
                   >
@@ -239,7 +237,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-zinc-500">
                   <span>
-                    Tips: Di n8n canvas, gunakan <strong>Test Webhook URL</strong> saat testing dan klik <em>'Listen for Test Event'</em>.
+                    Tips: gunakan <strong>Production URL</strong> setelah workflow di n8n diaktifkan. Test URL hanya berlaku saat <em>Listen for Test Event</em> aktif.
                   </span>
                   <button
                     type="button"
