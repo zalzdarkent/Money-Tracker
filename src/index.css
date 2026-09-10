@@ -5,12 +5,14 @@
     --font-serif: 'Instrument Serif', Georgia, serif;
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+    color-scheme: dark;
   }
 
   body {
     font-family: var(--font-sans);
     background-color: #09090b;
     color: #fafafa;
+    color-scheme: dark;
   }
 
   .font-serif {
@@ -19,6 +21,23 @@
 
   .font-mono {
     font-family: var(--font-mono);
+  }
+
+  /* Date inputs styling for dark theme */
+  input[type="date"] {
+    color-scheme: dark;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(1) brightness(1.2);
+    opacity: 0.75;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    transform: scale(1.1);
   }
 }
 

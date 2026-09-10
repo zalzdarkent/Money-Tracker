@@ -14,38 +14,65 @@ export interface SheetsAnalytics {
 }
 
 /**
- * Parses Google Visualization API (gviz) JSON response or CSV text into structured ExpenseItems.
+ * Returns local date in YYYY-MM-DD format (avoids UTC timezone offset bugs).
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Parses Google Visualization API (gviz) JSON response into structured ExpenseItems.
+ * Works seamlessly with public "Viewer" access on Google Sheets with anti-cache headers.
  */
 export async function fetchGoogleSheetsData(
   spreadsheetId: string,
-  sheetName: string = "Sheet1"
+  sheetName?: string
 ): Promise<{ success: boolean; data: GoogleSheetsRecord[]; error?: string }> {
   if (!spreadsheetId || spreadsheetId.includes("MASUKKAN_ID")) {
     return {
       success: false,
       data: [],
-      error: "Spreadsheet ID belum dikonfigurasi di .env atau settings.",
+      error: "Spreadsheet ID belum dikonfigurasi di .env atau pengaturan.",
     };
   }
 
-  // Strategy 1: Google Visualization API (gviz)
-  try {
-    const gvizUrl = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(
-      spreadsheetId
-    )}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  // Clean spreadsheetId if full URL was pasted
+  let cleanId = spreadsheetId.trim();
+  const urlMatch = cleanId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (urlMatch && urlMatch[1]) {
+    cleanId = urlMatch[1];
+  }
 
-    const response = await fetch(gvizUrl);
+  try {
+    // Add timestamp cache-buster to always get latest data from Google Sheets
+    const timestamp = Date.now();
+    const baseGviz = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(cleanId)}/gviz/tq?tqx=out:json&t=${timestamp}`;
+    const gvizUrl = sheetName && sheetName !== "Sheet1" 
+      ? `${baseGviz}&sheet=${encodeURIComponent(sheetName)}` 
+      : baseGviz;
+
+    const response = await fetch(gvizUrl, {
+      cache: "no-store",
+      headers: {
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      }
+    });
+
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         throw new Error(
-          "Google Sheets berstatus privat. Di Google Sheets, klik 'Bagikan' (Share) -> ubah 'Akses umum' menjadi 'Siapa saja yang memiliki link dapat melihat' (Viewer)."
+          "Google Sheets berstatus privat. Di Google Sheets, klik tombol 'Bagikan' (Share) -> ubah 'Akses umum' menjadi 'Siapa saja yang memiliki link dapat melihat' (Viewer)."
         );
       }
       throw new Error(`Google Sheets merespon status ${response.status} (${response.statusText})`);
     }
 
     const rawText = await response.text();
-    // gviz returns: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    // gviz format: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
     const jsonMatch = rawText.match(/google\.visualization\.Query\.setResponse\(([\s\S\w]+)\);/);
     
     if (jsonMatch && jsonMatch[1]) {
@@ -56,29 +83,29 @@ export async function fetchGoogleSheetsData(
         return { success: true, data: [] };
       }
 
-      // Find column indices
+      // Identify column indices by label names
       const cols = (table.cols || []).map((c: any) => (c?.label || "").toLowerCase().trim());
       
-      let dateIdx = cols.findIndex((l: string) => l.includes("tanggal") || l.includes("date"));
-      let catIdx = cols.findIndex((l: string) => l.includes("kategori") || l.includes("category"));
-      let descIdx = cols.findIndex((l: string) => l.includes("deskripsi") || l.includes("description") || l.includes("item") || l.includes("keterangan"));
-      let amountIdx = cols.findIndex((l: string) => l.includes("jumlah") || l.includes("nominal") || l.includes("amount") || l.includes("rp") || l.includes("total"));
+      let dateIdx = cols.findIndex((l: string) => l.includes("tanggal") || l.includes("date") || l.includes("tgl") || l.includes("waktu"));
+      let catIdx = cols.findIndex((l: string) => l.includes("kategori") || l.includes("category") || l.includes("tipe") || l.includes("jenis"));
+      let descIdx = cols.findIndex((l: string) => l.includes("deskripsi") || l.includes("description") || l.includes("item") || l.includes("keterangan") || l.includes("nama") || l.includes("pengeluaran"));
+      let amountIdx = cols.findIndex((l: string) => l.includes("jumlah") || l.includes("nominal") || l.includes("amount") || l.includes("rp") || l.includes("total") || l.includes("harga"));
 
-      // Fallback column positions if labels are empty
+      // Fallback standard column positions [Tanggal, Kategori, Deskripsi, Jumlah]
       if (dateIdx === -1) dateIdx = 0;
       if (catIdx === -1) catIdx = 1;
       if (descIdx === -1) descIdx = 2;
       if (amountIdx === -1) amountIdx = 3;
 
       const records: GoogleSheetsRecord[] = [];
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getLocalDateString();
 
       table.rows.forEach((rowObj: any, index: number) => {
         const cells = rowObj.c || [];
         
         const getCellValue = (idx: number) => {
           if (!cells[idx]) return "";
-          return cells[idx].f || cells[idx].v || "";
+          return cells[idx].f != null ? cells[idx].f : cells[idx].v != null ? cells[idx].v : "";
         };
 
         const rawDate = getCellValue(dateIdx);
@@ -86,13 +113,14 @@ export async function fetchGoogleSheetsData(
         const rawDesc = getCellValue(descIdx);
         const rawAmount = getCellValue(amountIdx);
 
-        // Parse date string
+        // 1. Parse date string
         let formattedDate = todayStr;
-        if (rawDate) {
-          if (typeof rawDate === "string" && rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            formattedDate = rawDate;
-          } else if (typeof rawDate === "string" && rawDate.includes("Date(")) {
-            const match = rawDate.match(/Date\((\d+),(\d+),(\d+)\)/);
+        if (rawDate != null && rawDate !== "") {
+          const strDate = String(rawDate).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(strDate)) {
+            formattedDate = strDate;
+          } else if (strDate.includes("Date(")) {
+            const match = strDate.match(/Date\((\d+),(\d+),(\d+)/);
             if (match) {
               const year = match[1];
               const month = String(Number(match[2]) + 1).padStart(2, "0");
@@ -100,14 +128,16 @@ export async function fetchGoogleSheetsData(
               formattedDate = `${year}-${month}-${day}`;
             }
           } else {
-            const parsedD = new Date(rawDate);
+            const parsedD = new Date(strDate);
             if (!isNaN(parsedD.getTime())) {
-              formattedDate = parsedD.toISOString().split("T")[0];
+              formattedDate = getLocalDateString(parsedD);
+            } else {
+              formattedDate = strDate;
             }
           }
         }
 
-        // Parse amount
+        // 2. Parse nominal amount
         let nominal = 0;
         if (typeof rawAmount === "number") {
           nominal = Math.round(rawAmount);
@@ -119,10 +149,10 @@ export async function fetchGoogleSheetsData(
         const desc = String(rawDesc || "").trim();
         const cat = String(rawCat || "Lain-lain").trim();
 
-        // Only include non-empty rows
+        // Include any valid row
         if (desc || nominal > 0) {
           records.push({
-            id: `row-${index + 1}`,
+            id: `sheet-row-${index + 1}`,
             rowIndex: index + 2,
             tanggal: formattedDate,
             kategori: cat || "Lain-lain",
@@ -134,13 +164,13 @@ export async function fetchGoogleSheetsData(
 
       return {
         success: true,
-        data: records.reverse(), // latest first
+        data: records.reverse(), // latest appended row first
       };
     }
 
-    throw new Error("Format respon Google Sheets tidak sesuai.");
+    throw new Error("Format respon Google Sheets tidak sesuai atau kosong.");
   } catch (err: any) {
-    console.warn("Gagal fetch via gviz API:", err);
+    console.warn("Gagal fetch via Google Sheets gviz API:", err);
     return {
       success: false,
       data: [],
@@ -150,7 +180,7 @@ export async function fetchGoogleSheetsData(
 }
 
 /**
- * Filter records by date presets, with maximum date locked to TODAY (cannot view future/tomorrow).
+ * Filter records by date presets using local date comparisons.
  */
 export function filterRecordsByDate(
   records: GoogleSheetsRecord[],
@@ -158,28 +188,23 @@ export function filterRecordsByDate(
   customDate?: string
 ): GoogleSheetsRecord[] {
   const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
+  const todayStr = getLocalDateString(now);
 
   // Yesterday
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
+  const yesterdayStr = getLocalDateString(yesterday);
 
   // 7 Days ago
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 6);
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+  const sevenDaysAgoStr = getLocalDateString(sevenDaysAgo);
 
   // Current Year & Month (YYYY-MM)
   const currentMonthStr = todayStr.slice(0, 7);
 
   return records.filter((rec) => {
     const recDate = rec.tanggal;
-
-    // Safety check: Never allow dates strictly after today
-    if (recDate > todayStr) {
-      return false;
-    }
 
     switch (filterType) {
       case "today":
@@ -192,12 +217,10 @@ export function filterRecordsByDate(
         return recDate.startsWith(currentMonthStr) && recDate <= todayStr;
       case "custom":
         if (!customDate) return true;
-        // Strict guard: if user inputs a future date, block it
-        if (customDate > todayStr) return false;
         return recDate === customDate;
       case "all":
       default:
-        return recDate <= todayStr;
+        return true;
     }
   });
 }
@@ -206,14 +229,14 @@ export function filterRecordsByDate(
  * Calculate financial analytics for a set of records.
  */
 export function calculateAnalytics(records: GoogleSheetsRecord[]): SheetsAnalytics {
-  const totalSpent = records.reduce((acc, curr) => acc + curr.jumlah, 0);
+  const totalSpent = records.reduce((acc, curr) => acc + (Number(curr.jumlah) || 0), 0);
   const transactionCount = records.length;
   const averagePerTransaction = transactionCount > 0 ? Math.round(totalSpent / transactionCount) : 0;
 
   const categoryBreakdown: { [cat: string]: number } = {};
   for (const item of records) {
     const cat = item.kategori || "Lain-lain";
-    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + item.jumlah;
+    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + (Number(item.jumlah) || 0);
   }
 
   return {

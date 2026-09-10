@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Button } from "@/src/components/ui/button";
 import { ExpenseRecord } from "@/src/types";
 import { formatRupiah } from "@/src/lib/utils";
+import { fetchGoogleSheetsData, getLocalDateString } from "@/src/services/googleSheetsService";
 import { Workflow, Table, ShieldCheck, BookOpen, ReceiptText, BrainCircuit, BarChart3 } from "lucide-react";
 
 const VALID_TABS = ["tracker", "sheets-history", "workflow", "structure"];
@@ -81,29 +82,42 @@ export default function App() {
 
   const [monthlyVelocity, setMonthlyVelocity] = useState<number | null>(null);
   const totalSpent = history.reduce((acc, curr) => acc + curr.totalAmount, 0);
-  const displayedMonthlyVelocity = monthlyVelocity ?? totalSpent;
+
+  const loadMonthlyTotalFromSheets = async () => {
+    try {
+      const res = await fetchGoogleSheetsData(spreadsheetId);
+      if (res.success && res.data.length > 0) {
+        const currentMonthPrefix = getLocalDateString().slice(0, 7); // e.g. "2026-09"
+        const thisMonthItems = res.data.filter((item) => item.tanggal.startsWith(currentMonthPrefix));
+        const monthTotal = thisMonthItems.reduce((acc, curr) => acc + (Number(curr.jumlah) || 0), 0);
+        setMonthlyVelocity(monthTotal);
+      }
+    } catch (err) {
+      console.warn("Gagal mengambil total bulan ini dari Google Sheets:", err);
+    }
+  };
 
   useEffect(() => {
-    const summaryUrl = (import.meta as any).env?.VITE_N8N_MONTHLY_SUMMARY_URL;
-    if (!summaryUrl) return;
-    const loadMonthlyVelocity = async () => {
-      try {
-        const res = await fetch(summaryUrl, { headers: { Accept: "application/json" } });
-        if (!res.ok) throw new Error(`Summary webhook returned ${res.status}`);
-        const data = await res.json();
-        const total = Number(data.monthly_velocity ?? data.total_nominal ?? data.total ?? 0);
-        if (Number.isFinite(total)) setMonthlyVelocity(total);
-      } catch (err) {
-        console.warn("Gagal ambil ringkasan bulanan:", err);
-      }
+    loadMonthlyTotalFromSheets();
+
+    const handleFocus = () => {
+      loadMonthlyTotalFromSheets();
     };
-    loadMonthlyVelocity();
-  }, []);
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [spreadsheetId]);
 
   const handleExpenseSuccess = (record: ExpenseRecord) => {
     setLastResult({ record });
     setHistory((prev) => [record, ...prev]);
-    setMonthlyVelocity((prev) => (prev === null ? prev : prev + record.totalAmount));
+    setMonthlyVelocity((prev) => (prev === null ? record.totalAmount : prev + record.totalAmount));
+
+    // Refresh from Google Sheets after append
+    setTimeout(() => {
+      loadMonthlyTotalFromSheets();
+    }, 1200);
+
     setToasts((prev) => [
       ...prev,
       {
@@ -146,8 +160,8 @@ export default function App() {
           <div className="hidden md:flex items-center gap-6 border-x border-[#27272a] px-6 h-10">
             <div className="flex flex-col">
               <span className="text-[10px] text-zinc-500 uppercase font-semibold">Total Bulan Ini</span>
-              <span className="text-sm font-mono text-zinc-200">
-                {displayedMonthlyVelocity > 0 ? formatRupiah(displayedMonthlyVelocity) : "-"}
+              <span className="text-sm font-mono text-emerald-400 font-bold">
+                {monthlyVelocity !== null ? formatRupiah(monthlyVelocity) : totalSpent > 0 ? formatRupiah(totalSpent) : "-"}
               </span>
             </div>
           </div>
