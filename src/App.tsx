@@ -1,301 +1,304 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ExpenseForm } from "@/src/components/ExpenseForm";
 import { ExpenseResultCard } from "@/src/components/ExpenseResultCard";
 import { N8nWorkflowViewer } from "@/src/components/N8nWorkflowViewer";
+import { SheetsHistoryDashboard } from "@/src/components/SheetsHistoryDashboard";
 import { HistoryList } from "@/src/components/HistoryList";
 import { FolderStructureGuide } from "@/src/components/FolderStructureGuide";
 import { CorsGuideModal } from "@/src/components/CorsGuideModal";
 import { GoogleSheetsGuideModal } from "@/src/components/GoogleSheetsGuideModal";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/src/components/ui/tabs";
+import { Toaster, ToastMessage } from "@/src/components/ui/toaster";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
 import { ExpenseRecord } from "@/src/types";
 import { formatRupiah } from "@/src/lib/utils";
-import { 
-  Sparkles, 
-  Workflow, 
-  Table, 
-  ShieldCheck, 
-  Layers, 
-  BookOpen, 
-  ReceiptText, 
-  Flame, 
-  CheckCircle2, 
-  BrainCircuit, 
-  SlidersHorizontal,
-  Zap,
-  Activity,
-  Cpu
-} from "lucide-react";
+import { Workflow, Table, ShieldCheck, BookOpen, ReceiptText, BrainCircuit, BarChart3 } from "lucide-react";
+
+const VALID_TABS = ["tracker", "sheets-history", "workflow", "structure"];
 
 export default function App() {
   const [lastResult, setLastResult] = useState<{ record: ExpenseRecord } | null>(null);
-  const [history, setHistory] = useState<ExpenseRecord[]>([]);
+
+  const [history, setHistory] = useState<ExpenseRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem("aether_expense_history");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [corsModalOpen, setCorsModalOpen] = useState(false);
   const [sheetsModalOpen, setSheetsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("tracker");
 
+  const getInitialTab = (): string => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "").toLowerCase().trim();
+      if (hash === "riwayat" || hash === "sheets" || hash === "history") return "sheets-history";
+      if (VALID_TABS.includes(hash)) return hash;
+      const saved = localStorage.getItem("aether_active_tab");
+      if (saved && VALID_TABS.includes(saved)) return saved;
+    }
+    return "tracker";
+  };
+
+  const [activeTab, setActiveTabState] = useState<string>(getInitialTab);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    if (typeof window !== "undefined") {
+      window.location.hash = tab;
+      try {
+        localStorage.setItem("aether_active_tab", tab);
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "").toLowerCase().trim();
+      if (hash === "riwayat" || hash === "sheets" || hash === "history") {
+        setActiveTabState("sheets-history");
+      } else if (VALID_TABS.includes(hash)) {
+        setActiveTabState(hash);
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    if (!window.location.hash) {
+      window.history.replaceState(null, "", `#${activeTab}`);
+    }
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [activeTab]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("aether_expense_history", JSON.stringify(history));
+    } catch {}
+  }, [history]);
+
+  const spreadsheetId = (import.meta as any).env?.VITE_GOOGLE_SHEETS_ID || "19_WEy7mMHbzderOH5kkiu0ChFnuj_0RG6noKqAJk_Q4";
+
+  const [monthlyVelocity, setMonthlyVelocity] = useState<number | null>(null);
   const totalSpent = history.reduce((acc, curr) => acc + curr.totalAmount, 0);
-  const monthlyVelocity = totalSpent > 0 ? totalSpent : 14250000;
+  const displayedMonthlyVelocity = monthlyVelocity ?? totalSpent;
+
+  useEffect(() => {
+    const summaryUrl = (import.meta as any).env?.VITE_N8N_MONTHLY_SUMMARY_URL;
+    if (!summaryUrl) return;
+    const loadMonthlyVelocity = async () => {
+      try {
+        const res = await fetch(summaryUrl, { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error(`Summary webhook returned ${res.status}`);
+        const data = await res.json();
+        const total = Number(data.monthly_velocity ?? data.total_nominal ?? data.total ?? 0);
+        if (Number.isFinite(total)) setMonthlyVelocity(total);
+      } catch (err) {
+        console.warn("Gagal ambil ringkasan bulanan:", err);
+      }
+    };
+    loadMonthlyVelocity();
+  }, []);
 
   const handleExpenseSuccess = (record: ExpenseRecord) => {
     setLastResult({ record });
     setHistory((prev) => [record, ...prev]);
+    setMonthlyVelocity((prev) => (prev === null ? prev : prev + record.totalAmount));
+    setToasts((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        type: "success",
+        title: "Berhasil disimpan",
+        description: `${record.items.length} item ke Google Sheets.`,
+        itemCount: record.items.length,
+        totalNominal: record.totalAmount,
+        actionLabel: "Lihat Riwayat",
+        onAction: () => setActiveTab("sheets-history"),
+      },
+    ]);
+  };
+
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleClearHistory = () => {
     setHistory([]);
+    try {
+      localStorage.removeItem("aether_expense_history");
+    } catch {}
   };
 
   return (
     <div className="min-h-screen w-full bg-[#09090b] text-[#fafafa] flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
-      {/* Top Protocol Header */}
-      <header className="sticky top-0 z-40 w-full border-b border-[#27272a] bg-[#09090b]/90 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-[#18181b] border border-[#27272a] p-1 flex items-center justify-center shadow-lg shadow-black/40">
+      <Toaster toasts={toasts} onDismiss={handleDismissToast} />
+
+      <header className="border-b border-[#27272a] bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#18181b] border border-[#27272a] flex items-center justify-center">
               <BrainCircuit className="w-5 h-5 text-emerald-400" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-serif italic tracking-tight text-white">
-                  Aether Ledger
-                </h1>
-                <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono font-bold tracking-wider uppercase">
-                  ACTIVE
-                </span>
-              </div>
-              <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold hidden sm:block">
-                AI Financial Protocol &bull; n8n + Gemini AI + Google Sheets
-              </p>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight text-white">Money Tracker</h1>
           </div>
 
-          {/* Quick Metrics on Desktop */}
-          <div className="hidden md:flex items-center gap-8 border-x border-[#27272a] px-6 h-10">
+          <div className="hidden md:flex items-center gap-6 border-x border-[#27272a] px-6 h-10">
             <div className="flex flex-col">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-tight font-semibold">
-                Monthly Velocity
-              </span>
-              <span className="text-xs sm:text-sm font-semibold font-mono text-zinc-200">
-                {formatRupiah(monthlyVelocity)}
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-tight font-semibold">
-                AI Accuracy
-              </span>
-              <span className="text-xs sm:text-sm font-semibold font-mono text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                99.2%
+              <span className="text-[10px] text-zinc-500 uppercase font-semibold">Total Bulan Ini</span>
+              <span className="text-sm font-mono text-zinc-200">
+                {displayedMonthlyVelocity > 0 ? formatRupiah(displayedMonthlyVelocity) : "-"}
               </span>
             </div>
           </div>
 
-          {/* Quick Action Buttons */}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCorsModalOpen(true)}
-              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white hover:border-zinc-600 hover:bg-[#18181b]"
+              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white"
             >
               <ShieldCheck className="w-3.5 h-3.5 mr-1 text-amber-400" />
-              <span className="hidden sm:inline">Solusi</span> CORS
+              CORS
             </Button>
-
             <Button
               variant="outline"
               size="sm"
               onClick={() => setSheetsModalOpen(true)}
-              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white hover:border-zinc-600 hover:bg-[#18181b]"
+              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white"
             >
               <Table className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-              <span className="hidden sm:inline">Setup</span> Sheets
+              Sheets
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Section with Radial Gradient Atmosphere */}
       <main className="flex-1 w-full bg-[radial-gradient(circle_at_top_right,_#18181b,_#09090b_60%)] py-6 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          
-          {/* Section Hero Banner */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#27272a] pb-6">
-            <div className="max-w-2xl">
-              <h2 className="text-3xl sm:text-4xl font-serif italic tracking-tight text-white mb-2">
-                Transcribe Intelligence
-              </h2>
-              <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed">
-                Tuliskan pengeluaran Anda dalam bahasa sehari-hari. Gemini AI akan mengekstrak data terstruktur untuk ledger keuangan dan Google Sheets Anda.
-              </p>
+            <div className="max-w-xl">
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">Catat Pengeluaran</h2>
+              <p className="text-zinc-400 text-sm mt-1">Ketik dengan bahasa sehari-hari, otomatis masuk ke Google Sheets.</p>
             </div>
 
-            {/* Navigation Tabs Header */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-              <TabsList className="grid grid-cols-3 max-w-md w-full bg-[#121214] border border-[#27272a]">
+              <TabsList className="grid grid-cols-2 sm:grid-cols-4 max-w-xl w-full bg-[#121214] border border-[#27272a]">
                 <TabsTrigger value="tracker" className="text-xs">
                   <ReceiptText className="w-3.5 h-3.5" />
-                  <span>Ledger Form</span>
+                  <span>Catat</span>
+                </TabsTrigger>
+                <TabsTrigger value="sheets-history" className="text-xs">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Riwayat</span>
                 </TabsTrigger>
                 <TabsTrigger value="workflow" className="text-xs">
                   <Workflow className="w-3.5 h-3.5" />
-                  <span>n8n Pipeline</span>
+                  <span>Workflow</span>
                 </TabsTrigger>
                 <TabsTrigger value="structure" className="text-xs">
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>Architecture</span>
+                  <span>Struktur</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
-          {/* TAB 1: TRACKER & LIVE FORM */}
           {activeTab === "tracker" && (
             <div className="space-y-8 animate-in fade-in-50 duration-200">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Left Column: Form Input & Results */}
                 <div className="lg:col-span-7 space-y-8">
-                  <ExpenseForm 
-                    onSuccess={handleExpenseSuccess} 
-                    onOpenCorsGuide={() => setCorsModalOpen(true)} 
-                  />
-
-                  {/* Latest Result Card if present */}
+                  <ExpenseForm onSuccess={handleExpenseSuccess} onOpenCorsGuide={() => setCorsModalOpen(true)} />
                   {lastResult && (
-                    <ExpenseResultCard 
+                    <ExpenseResultCard
                       response={{
                         status: "success",
                         total_nominal: lastResult.record.totalAmount,
                         data: lastResult.record.items,
-                        message: `Berhasil mengekstrak ${lastResult.record.items.length} item pengeluaran!`
+                        message: `${lastResult.record.items.length} item berhasil disimpan`,
                       }}
                       source={lastResult.record.source}
                     />
                   )}
                 </div>
 
-                {/* Right Column: Infrastructure Nodes & History Logs */}
                 <div className="lg:col-span-5 space-y-6">
-                  {/* Infrastructure Status Cards */}
-                  <div className="rounded-2xl border border-[#27272a] bg-[#18181b] p-5 space-y-4 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-[#27272a] pb-3">
-                      <p className="text-[11px] uppercase tracking-wider text-zinc-400 font-bold flex items-center gap-2">
-                        <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-                        Infrastructure Protocol
-                      </p>
-                      <span className="text-[10px] text-zinc-500 font-mono">Port Map</span>
-                    </div>
-
+                  <div className="rounded-2xl border border-[#27272a] bg-[#18181b] p-5 space-y-4">
+                    <p className="text-xs font-semibold text-zinc-300">Status Koneksi</p>
                     <div className="space-y-3">
-                      <div className="bg-[#121214] border border-[#27272a] p-3.5 rounded-xl flex items-center justify-between">
+                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs text-zinc-300 font-medium">n8n Localhost</span>
-                            <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono font-bold">
-                              ACTIVE
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-zinc-500 font-mono">http://localhost:5678</p>
+                          <span className="text-xs text-zinc-200">n8n Webhook</span>
+                          <p className="text-[11px] text-zinc-500 font-mono">localhost:5678</p>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-zinc-400 font-mono">POST</span>
-                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono">Aktif</span>
                       </div>
-
-                      <div className="bg-[#121214] border border-[#27272a] p-3.5 rounded-xl flex items-center justify-between">
+                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs text-zinc-300 font-medium">Google Sheets</span>
-                            <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono font-bold">
-                              CONNECTED
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-zinc-500 font-mono">Sheet ID: 1Bxi...epms</p>
+                          <span className="text-xs text-zinc-200">Google Sheets</span>
+                          <p className="text-[11px] text-zinc-500 font-mono">Terhubung</p>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-zinc-400 font-mono">Append</span>
-                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono">OK</span>
                       </div>
-
-                      <div className="bg-[#121214] border border-[#27272a] p-3.5 rounded-xl flex items-center justify-between">
+                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs text-zinc-300 font-medium">Gemini 1.5 Flash</span>
-                            <span className="text-[9px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded font-mono font-bold">
-                              AI CORE
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-zinc-500 font-mono">JSON Structured Output</p>
+                          <span className="text-xs text-zinc-200">Gemini AI</span>
+                          <p className="text-[11px] text-zinc-500 font-mono">Parser</p>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-purple-400 font-mono">LLM</span>
-                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded font-mono">AI</span>
                       </div>
                     </div>
-
-                    <div className="pt-2 border-t border-[#27272a] flex items-center justify-between text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("workflow")}
-                        className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 font-medium transition-colors"
-                      >
-                        Buka Blueprint n8n Workflow JSON &rarr;
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("workflow")}
+                      className="text-xs text-emerald-400 hover:underline"
+                    >
+                      Lihat Workflow →
+                    </button>
                   </div>
 
-                  {/* History Component */}
                   <HistoryList records={history} onClear={handleClearHistory} />
                 </div>
               </div>
 
-              {/* Status Protocol Live Bar */}
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 border border-[#27272a] rounded-2xl bg-[#121214]/60 gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <span className="text-xs text-zinc-400">
-                    Workflow status ready. Menunggu input teks pengeluaran untuk diekstrak ke Google Sheets...
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-[10px] text-zinc-500 font-mono">
-                    ENDPOINT: POST /webhook/catat-keuangan
-                  </span>
-                </div>
+              <div className="flex items-center justify-between p-4 border border-[#27272a] rounded-2xl bg-[#121214]/60 text-xs text-zinc-500">
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Siap • Menunggu input
+                </span>
+                <span className="font-mono hidden sm:block">POST /webhook/catat-keuangan</span>
               </div>
             </div>
           )}
 
-          {/* TAB 2: N8N WORKFLOW HUB */}
+          {activeTab === "sheets-history" && (
+            <div className="space-y-6 animate-in fade-in-50 duration-200">
+              <SheetsHistoryDashboard spreadsheetId={spreadsheetId} onOpenSheetsGuide={() => setSheetsModalOpen(true)} />
+            </div>
+          )}
+
           {activeTab === "workflow" && (
             <div className="space-y-6 animate-in fade-in-50 duration-200">
               <N8nWorkflowViewer />
             </div>
           )}
 
-          {/* TAB 3: STRUCTURE & GUIDES */}
           {activeTab === "structure" && (
             <div className="space-y-6 animate-in fade-in-50 duration-200">
               <FolderStructureGuide />
             </div>
           )}
-
         </div>
       </main>
 
-      {/* Modals for CORS and Google Sheets Guide */}
       <CorsGuideModal open={corsModalOpen} onOpenChange={setCorsModalOpen} />
       <GoogleSheetsGuideModal open={sheetsModalOpen} onOpenChange={setSheetsModalOpen} />
 
-      {/* Sophisticated Dark Footer */}
-      <footer className="border-t border-[#27272a] bg-[#09090b] h-14 px-4 sm:px-8 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
-        <div>VERSION 2.4.0-STABLE</div>
-        <div className="hidden sm:block">&copy; 2026 AI EXPENSE TRACKER PRO &bull; AETHER LEDGER</div>
-        <div>LATENCY: &lt; 120ms</div>
+      <footer className="border-t border-[#27272a] bg-[#09090b] h-12 px-4 sm:px-8 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+        <span>© 2026 Money Tracker</span>
+        <span className="hidden sm:block">v2.4.0</span>
       </footer>
     </div>
   );
 }
-

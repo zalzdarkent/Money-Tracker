@@ -29,52 +29,198 @@ STRUKTUR JSON YANG DIHASILKAN:
 ]`;
 
 export const N8N_CODE_NODE_SCRIPT = `// Node 3: Code Node (JSON Parser & Validation)
-// Mengambil output dari Gemini AI Node, melakukan parsing aman, 
-// memvalidasi field, dan mengembalikan array item untuk Google Sheets Append Row.
+// Ultra-robust parser untuk output Gemini/n8n.
 
 const rawOutput = $input.first().json;
+
+function looksLikeExpenseObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) && (
+    'tanggal' in value || 'kategori' in value || 'deskripsi' in value ||
+    'jumlah' in value || 'nominal' in value || 'amount' in value ||
+    'description' in value || 'category' in value || 'date' in value
+  );
+}
+
+function findGeminiPayload(value, depth = 0) {
+  if (value == null || depth > 6) return null;
+  if (typeof value === 'string' && value.trim()) return value;
+  if (Array.isArray(value)) return value;
+  if (looksLikeExpenseObject(value)) return value;
+
+  // Format umum Google/Gemini: candidates[0].content.parts[0].text
+  const candidateText = value.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('\\n');
+  if (candidateText && candidateText.trim()) return candidateText;
+
+  // Format umum content.parts
+  const partsText = value.content?.parts?.map((p) => p?.text || '').join('\\n');
+  if (partsText && partsText.trim()) return partsText;
+
+  // Format umum n8n / langchain node output: text, response, output, message, result, data, json
+  for (const key of ['text', 'response', 'output', 'message', 'result', 'data', 'json']) {
+    if (value[key] != null) {
+      const found = findGeminiPayload(value[key], depth + 1);
+      if (found != null) return found;
+    }
+  }
+
+  return null;
+}
+
+function sanitizeAndNormalizeJson(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/\\x60\\x60\\x60json/gi, '')
+    .replace(/\\x60\\x60\\x60javascript/gi, '')
+    .replace(/\\x60\\x60\\x60js/gi, '')
+    .replace(/\\x60\\x60\\x60/g, '')
+    .replace(/[\\u201C\\u201D\\u201E\\u201F\\u2033\\u2036]/g, '"') // smart double quotes
+    .replace(/[\\u2018\\u2019\\u201A\\u201B\\u2032\\u2035]/g, "'") // smart single quotes
+    .replace(/\\bNone\\b/g, 'null')
+    .replace(/\\bTrue\\b/g, 'true')
+    .replace(/\\bFalse\\b/g, 'false')
+    .trim();
+}
+
+function tryParseCandidate(candidate) {
+  if (!candidate || typeof candidate !== 'string') return null;
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+
+  // 1. Coba JSON.parse langsung
+  try {
+    return JSON.parse(trimmed);
+  } catch (e) {}
+
+  // 2. Coba perbaiki trailing comma dan single quotes ke double quotes
+  try {
+    let fixed = trimmed
+      .replace(/,\\s*([\\]}])/g, '$1')
+      .replace(/'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, '"$1"');
+    return JSON.parse(fixed);
+  } catch (e) {}
+
+  // 3. Gunakan JavaScript Object evaluation fallback (sangat ampuh untuk unquoted keys & format JS literal)
+  try {
+    const fn = new Function('return (' + trimmed + ')');
+    const result = fn();
+    if (result != null && (typeof result === 'object' || Array.isArray(result))) {
+      return result;
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+function parseJsonText(text) {
+  const cleaned = sanitizeAndNormalizeJson(text);
+  if (!cleaned) return [];
+
+  // Percobaan 1: Parse seluruh teks
+  const direct = tryParseCandidate(cleaned);
+  if (direct != null) return direct;
+
+  // Percobaan 2: Ambil substring array [...]
+  const arrayStart = cleaned.indexOf('[');
+  const arrayEnd = cleaned.lastIndexOf(']');
+  if (arrayStart !== -1 && arrayEnd > arrayStart) {
+    const arrayCandidate = cleaned.slice(arrayStart, arrayEnd + 1);
+    const parsed = tryParseCandidate(arrayCandidate);
+    if (parsed != null) return parsed;
+  }
+
+  // Percobaan 3: Ambil substring object {...}
+  const objectStart = cleaned.indexOf('{');
+  const objectEnd = cleaned.lastIndexOf('}');
+  if (objectStart !== -1 && objectEnd > objectStart) {
+    const objectCandidate = cleaned.slice(objectStart, objectEnd + 1);
+    const parsed = tryParseCandidate(objectCandidate);
+    if (parsed != null) return parsed;
+  }
+
+  throw new Error('Gagal mengekstrak JSON dari teks AI: ' + cleaned.slice(0, 300));
+}
+
+function unwrapExpenseList(value) {
+  let current = value;
+
+  for (let i = 0; i < 5; i++) {
+    if (typeof current === 'string') {
+      current = parseJsonText(current);
+    }
+    if (Array.isArray(current)) return current;
+    if (looksLikeExpenseObject(current)) return [current];
+
+    if (current && typeof current === 'object') {
+      const next = current.data || current.items || current.expenses || current.pengeluaran || current.transactions || current.output || current.response || current.text || current.result;
+      if (next == null) {
+        const values = Object.values(current);
+        if (values.length > 0 && (Array.isArray(values[0]) || looksLikeExpenseObject(values[0]))) {
+          current = Array.isArray(values[0]) ? values[0] : values;
+          continue;
+        }
+        break;
+      }
+      current = next;
+      continue;
+    }
+
+    break;
+  }
+
+  return [];
+}
+
+function parseNominal(value) {
+  if (typeof value === 'number') return Math.round(value);
+
+  const raw = String(value ?? '').toLowerCase().trim();
+  const match = raw.match(/(\\d+(?:[.,]\\d+)?)\\s*(rb|ribu|k|jt|juta)?/i);
+  if (!match) return 0;
+
+  const number = parseFloat(match[1].replace(',', '.'));
+  const unit = match[2];
+
+  if (unit === 'rb' || unit === 'ribu' || unit === 'k') return Math.round(number * 1000);
+  if (unit === 'jt' || unit === 'juta') return Math.round(number * 1000000);
+  return Math.round(number);
+}
+
 let expenseList = [];
 
 try {
-  // Ambil teks dari AI node (bisa dari text, response, output, atau message)
-  let aiText = rawOutput.text || rawOutput.response || rawOutput.output || (rawOutput.candidates && rawOutput.candidates[0]?.content?.parts[0]?.text) || JSON.stringify(rawOutput);
-  
-  if (typeof aiText === 'string') {
-    // Bersihkan markdown code block jika model AI membungkus dengan json codeblock
-    aiText = aiText.replace(new RegExp("\\x60\\x60\\x60json", "gi"), "").replace(new RegExp("\\x60\\x60\\x60", "g"), "").trim();
-    expenseList = JSON.parse(aiText);
-  } else if (Array.isArray(aiText)) {
-    expenseList = aiText;
-  } else if (typeof aiText === 'object') {
-    expenseList = [aiText];
+  const payload = findGeminiPayload(rawOutput);
+  if (payload == null) {
+    throw new Error('Payload Gemini kosong/tidak dikenali. Raw: ' + JSON.stringify(rawOutput).slice(0, 500));
   }
-} catch (error) {
-  throw new Error("Gagal melakukan parse JSON dari Gemini AI: " + error.message);
-}
 
-if (!Array.isArray(expenseList)) {
-  expenseList = [expenseList];
+  expenseList = unwrapExpenseList(payload);
+} catch (error) {
+  throw new Error('Gagal melakukan parse JSON dari Gemini AI: ' + error.message);
 }
 
 const todayStr = new Date().toISOString().split('T')[0];
 
-// Normalisasi dan validasi setiap item
-const validatedItems = expenseList.map((item, index) => {
-  const nominal = parseInt(String(item.jumlah || item.nominal || item.amount || 0).replace(/[^0-9]/g, ''), 10) || 0;
+const validatedItems = expenseList.map((rawItem, index) => {
+  const item = rawItem?.json || rawItem;
+  const nominal = parseNominal(item?.jumlah ?? item?.nominal ?? item?.amount ?? item?.total);
+  const desc = item?.deskripsi || item?.description || item?.item || item?.nama || '';
+  const cat = item?.kategori || item?.category || 'Lain-lain';
+  const tgl = item?.tanggal || item?.date || todayStr;
+
   return {
     json: {
       index: index + 1,
-      tanggal: item.tanggal || todayStr,
-      kategori: item.kategori || "Lain-lain",
-      deskripsi: item.deskripsi || "Pengeluaran tanpa deskripsi",
+      tanggal: tgl,
+      kategori: cat,
+      deskripsi: desc,
       jumlah: nominal,
       total_nominal: nominal
     }
   };
-});
+}).filter((item) => item.json.jumlah > 0 && item.json.deskripsi);
 
 if (validatedItems.length === 0) {
-  throw new Error("Tidak ada item pengeluaran valid yang berhasil diekstrak.");
+  throw new Error('Tidak ada item valid dari Gemini. Cek output node Gemini. Raw: ' + JSON.stringify(rawOutput).slice(0, 800));
 }
 
 return validatedItems;`;
@@ -166,7 +312,44 @@ export const N8N_WORKFLOW_JSON = {
             "Jumlah": "={{ $json.jumlah }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "Tanggal",
+              "displayName": "Tanggal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Kategori",
+              "displayName": "Kategori",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deskripsi",
+              "displayName": "Deskripsi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Jumlah",
+              "displayName": "Jumlah",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -184,12 +367,16 @@ export const N8N_WORKFLOW_JSON = {
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"Berhasil mencatat \" + $items().length + \" transaksi ke Google Sheets!\",\n  \"total_items\": $items().length,\n  \"total_nominal\": $items().reduce((acc, curr) => acc + (curr.json.jumlah || 0), 0),\n  \"data\": $items().map(i => i.json)\n}",
+        "respondWith": "text",
+        "responseBody": "={{\n  JSON.stringify({\n    \"status\": \"success\",\n    \"message\": \"Berhasil mencatat \" + $('Code (JSON Parser & Validation)').all().length + \" transaksi ke Google Sheets!\",\n    \"total_items\": $('Code (JSON Parser & Validation)').all().length,\n    \"total_nominal\": $('Code (JSON Parser & Validation)').all().reduce((acc, curr) => acc + (curr.json.jumlah || 0), 0),\n    \"data\": $('Code (JSON Parser & Validation)').all().map(i => i.json)\n  })\n}}",
         "options": {
           "responseCode": 200,
           "responseHeaders": {
             "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "name": "Access-Control-Allow-Origin",
                 "value": "*"

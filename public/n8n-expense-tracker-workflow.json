@@ -29,7 +29,10 @@
       "name": "Webhook (Trigger)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 300],
+      "position": [
+        220,
+        300
+      ],
       "webhookId": "catat-keuangan"
     },
     {
@@ -45,7 +48,10 @@
       "name": "Gemini AI (Structured Output)",
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1,
-      "position": [440, 300],
+      "position": [
+        440,
+        300
+      ],
       "credentials": {
         "googlePalmApi": {
           "id": "GEMINI_CREDENTIAL_ID",
@@ -55,13 +61,16 @@
     },
     {
       "parameters": {
-        "jsCode": "// Node 3: Code Node (JSON Parser & Validation)\n// Mengambil output dari Gemini AI Node, melakukan parsing aman, \n// memvalidasi field, dan mengembalikan array item untuk Google Sheets Append Row.\n\nconst rawOutput不易 = $input.first().json;\nconst rawOutput = $input.first().json;\nlet expenseList = [];\n\ntry {\n  // Ambil teks dari AI node (bisa dari text, response, output, atau message)\n  let aiText = rawOutput.text || rawOutput.response || rawOutput.output || (rawOutput.candidates && rawOutput.candidates[0]?.content?.parts[0]?.text) || JSON.stringify(rawOutput);\n  \n  if (typeof aiText === 'string') {\n    // Bersihkan markdown code block jika model AI membungkus dengan json codeblock\n    aiText = aiText.replace(/```json/gi, '').replace(/```/g, '').trim();\n    expenseList = JSON.parse(aiText);\n  } else if (Array.isArray(aiText)) {\n    expenseList = aiText;\n  } else if (typeof aiText === 'object') {\n    expenseList = [aiText];\n  }\n} catch (error) {\n  throw new Error('Gagal melakukan parse JSON dari Gemini AI: ' + error.message);\n}\n\nif (!Array.isArray(expenseList)) {\n  expenseList不易 = [expenseList];\n  expenseList = [expenseList];\n}\n\nconst todayStr不易 = new Date().toISOString().split('T')[0];\nconst todayStr = new Date().toISOString().split('T')[0];\n\n// Normalisasi dan validasi setiap item\nconst validatedItems = expenseList.map((item, index) => {\n  const nominal = parseInt(String(item.jumlah || item.nominal || item.amount || 0).replace(/[^0-9]/g, ''), 10) || 0;\n  return {\n    json: {\n      index: index + 1,\n      tanggal: item.tanggal || todayStr,\n      kategori: item.kategori || 'Lain-lain',\n      deskripsi: item.deskripsi || 'Pengeluaran tanpa deskripsi',\n      jumlah: nominal,\n      total_nominal: nominal\n    }\n  };\n});\n\nif (validatedItems.length === 0) {\n  throw new Error('Tidak ada item pengeluaran valid yang berhasil diekstrak.');\n}\n\nreturn validatedItems;"
+        "jsCode": "// Node 3: Code Node (JSON Parser & Validation)\n// Ultra-robust parser untuk output Gemini/n8n.\n\nconst rawOutput = $input.first().json;\n\nfunction looksLikeExpenseObject(value) {\n  return value && typeof value === 'object' && !Array.isArray(value) && (\n    'tanggal' in value || 'kategori' in value || 'deskripsi' in value ||\n    'jumlah' in value || 'nominal' in value || 'amount' in value ||\n    'description' in value || 'category' in value || 'date' in value\n  );\n}\n\nfunction findGeminiPayload(value, depth = 0) {\n  if (value == null || depth > 6) return null;\n  if (typeof value === 'string' && value.trim()) return value;\n  if (Array.isArray(value)) return value;\n  if (looksLikeExpenseObject(value)) return value;\n\n  // Format umum Google/Gemini: candidates[0].content.parts[0].text\n  const candidateText = value.candidates?.[0]?.content?.parts?.map((p) => p?.text || '').join('\\n');\n  if (candidateText && candidateText.trim()) return candidateText;\n\n  // Format umum content.parts\n  const partsText = value.content?.parts?.map((p) => p?.text || '').join('\\n');\n  if (partsText && partsText.trim()) return partsText;\n\n  // Format umum n8n / langchain node output: text, response, output, message, result, data, json\n  for (const key of ['text', 'response', 'output', 'message', 'result', 'data', 'json']) {\n    if (value[key] != null) {\n      const found = findGeminiPayload(value[key], depth + 1);\n      if (found != null) return found;\n    }\n  }\n\n  return null;\n}\n\nfunction sanitizeAndNormalizeJson(str) {\n  if (!str || typeof str !== 'string') return '';\n  return str\n    .replace(/```json/gi, '')\n    .replace(/```javascript/gi, '')\n    .replace(/```js/gi, '')\n    .replace(/```/g, '')\n    .replace(/[\\u201C\\u201D\\u201E\\u201F\\u2033\\u2036]/g, '\"')\n    .replace(/[\\u2018\\u2019\\u201A\\u201B\\u2032\\u2035]/g, \"'\")\n    .replace(/\\bNone\\b/g, 'null')\n    .replace(/\\bTrue\\b/g, 'true')\n    .replace(/\\bFalse\\b/g, 'false')\n    .trim();\n}\n\nfunction tryParseCandidate(candidate) {\n  if (!candidate || typeof candidate !== 'string') return null;\n  const trimmed = candidate.trim();\n  if (!trimmed) return null;\n\n  try {\n    return JSON.parse(trimmed);\n  } catch (e) {}\n\n  try {\n    let fixed = trimmed\n      .replace(/,\\s*([\\]}])/g, '$1')\n      .replace(/'([^'\\\\]*(?:\\\\.[^'\\\\]*)*)'/g, '\"$1\"');\n    return JSON.parse(fixed);\n  } catch (e) {}\n\n  try {\n    const fn = new Function('return (' + trimmed + ')');\n    const result = fn();\n    if (result != null && (typeof result === 'object' || Array.isArray(result))) {\n      return result;\n    }\n  } catch (e) {}\n\n  return null;\n}\n\nfunction parseJsonText(text) {\n  const cleaned = sanitizeAndNormalizeJson(text);\n  if (!cleaned) return [];\n\n  const direct = tryParseCandidate(cleaned);\n  if (direct != null) return direct;\n\n  const arrayStart = cleaned.indexOf('[');\n  const arrayEnd = cleaned.lastIndexOf(']');\n  if (arrayStart !== -1 && arrayEnd > arrayStart) {\n    const arrayCandidate = cleaned.slice(arrayStart, arrayEnd + 1);\n    const parsed = tryParseCandidate(arrayCandidate);\n    if (parsed != null) return parsed;\n  }\n\n  const objectStart = cleaned.indexOf('{');\n  const objectEnd = cleaned.lastIndexOf('}');\n  if (objectStart !== -1 && objectEnd > objectStart) {\n    const objectCandidate = cleaned.slice(objectStart, objectEnd + 1);\n    const parsed = tryParseCandidate(objectCandidate);\n    if (parsed != null) return parsed;\n  }\n\n  throw new Error('Gagal mengekstrak JSON dari teks AI: ' + cleaned.slice(0, 300));\n}\n\nfunction unwrapExpenseList(value) {\n  let current = value;\n\n  for (let i = 0; i < 5; i++) {\n    if (typeof current === 'string') {\n      current = parseJsonText(current);\n    }\n    if (Array.isArray(current)) return current;\n    if (looksLikeExpenseObject(current)) return [current];\n\n    if (current && typeof current === 'object') {\n      const next = current.data || current.items || current.expenses || current.pengeluaran || current.transactions || current.output || current.response || current.text || current.result;\n      if (next == null) {\n        const values = Object.values(current);\n        if (values.length > 0 && (Array.isArray(values[0]) || looksLikeExpenseObject(values[0]))) {\n          current = Array.isArray(values[0]) ? values[0] : values;\n          continue;\n        }\n        break;\n      }\n      current = next;\n      continue;\n    }\n\n    break;\n  }\n\n  return [];\n}\n\nfunction parseNominal(value) {\n  if (typeof value === 'number') return Math.round(value);\n\n  const raw = String(value ?? '').toLowerCase().trim();\n  const match = raw.match(/(\\d+(?:[.,]\\d+)?)\\s*(rb|ribu|k|jt|juta)?/i);\n  if (!match) return 0;\n\n  const number = parseFloat(match[1].replace(',', '.'));\n  const unit = match[2];\n\n  if (unit === 'rb' || unit === 'ribu' || unit === 'k') return Math.round(number * 1000);\n  if (unit === 'jt' || unit === 'juta') return Math.round(number * 1000000);\n  return Math.round(number);\n}\n\nlet expenseList = [];\n\ntry {\n  const payload = findGeminiPayload(rawOutput);\n  if (payload == null) {\n    throw new Error('Payload Gemini kosong/tidak dikenali. Raw: ' + JSON.stringify(rawOutput).slice(0, 500));\n  }\n\n  expenseList = unwrapExpenseList(payload);\n} catch (error) {\n  throw new Error('Gagal melakukan parse JSON dari Gemini AI: ' + error.message);\n}\n\nconst todayStr = new Date().toISOString().split('T')[0];\n\nconst validatedItems = expenseList.map((rawItem, index) => {\n  const item = rawItem?.json || rawItem;\n  const nominal = parseNominal(item?.jumlah ?? item?.nominal ?? item?.amount ?? item?.total);\n  const desc = item?.deskripsi || item?.description || item?.item || item?.nama || '';\n  const cat = item?.kategori || item?.category || 'Lain-lain';\n  const tgl = item?.tanggal || item?.date || todayStr;\n\n  return {\n    json: {\n      index: index + 1,\n      tanggal: tgl,\n      kategori: cat,\n      deskripsi: desc,\n      jumlah: nominal,\n      total_nominal: nominal\n    }\n  };\n}).filter((item) => item.json.jumlah > 0 && item.json.deskripsi);\n\nif (validatedItems.length === 0) {\n  throw new Error('Tidak ada item valid dari Gemini. Cek output node Gemini. Raw: ' + JSON.stringify(rawOutput).slice(0, 800));\n}\n\nreturn validatedItems;"
       },
       "id": "node-code-parser",
       "name": "Code (JSON Parser & Validation)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [660, 300]
+      "position": [
+        660,
+        300
+      ]
     },
     {
       "parameters": {
@@ -85,7 +94,44 @@
             "Jumlah": "={{ $json.jumlah }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "Tanggal",
+              "displayName": "Tanggal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Kategori",
+              "displayName": "Kategori",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deskripsi",
+              "displayName": "Deskripsi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Jumlah",
+              "displayName": "Jumlah",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -93,7 +139,10 @@
       "name": "Google Sheets (Append Row)",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [880, 300],
+      "position": [
+        880,
+        300
+      ],
       "credentials": {
         "googleSheetsOAuth2": {
           "id": "SHEETS_CREDENTIAL_ID",
@@ -103,12 +152,16 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"Berhasil mencatat \" + $items().length + \" transaksi ke Google Sheets!\",\n  \"total_items\": $items().length,\n  \"total_nominal\": $items().reduce((acc, curr) => acc + (curr.json.jumlah || 0), 0),\n  \"data\": $items().map(i => i.json)\n}",
+        "respondWith": "text",
+        "responseBody": "={{\n  JSON.stringify({\n    \"status\": \"success\",\n    \"message\": \"Berhasil mencatat \" + $('Code (JSON Parser & Validation)').all().length + \" transaksi ke Google Sheets!\",\n    \"total_items\": $('Code (JSON Parser & Validation)').all().length,\n    \"total_nominal\": $('Code (JSON Parser & Validation)').all().reduce((acc, curr) => acc + (curr.json.jumlah || 0), 0),\n    \"data\": $('Code (JSON Parser & Validation)').all().map(i => i.json)\n  })\n}}",
         "options": {
           "responseCode": 200,
           "responseHeaders": {
             "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
               {
                 "name": "Access-Control-Allow-Origin",
                 "value": "*"
@@ -125,7 +178,10 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     }
   ],
   "connections": {

@@ -28,7 +28,8 @@ const badgeVariants = cva(
   }
 );
 
-export function getCategoryBadgeVariant(category: string): "food" | "transport" | "shopping" | "bills" | "health" | "entertainment" | "default" {
+export function getCategoryBadgeVariant(category?: string | null): "food" | "transport" | "shopping" | "bills" | "health" | "entertainment" | "default" {
+  if (!category || typeof category !== "string") return "default";
   const cat = category.toLowerCase();
   if (cat.includes("makan") || cat.includes("minum") || cat.includes("kopi") || cat.includes("kuliner")) return "food";
   if (cat.includes("transport") || cat.includes("bensin") || cat.includes("gojek") || cat.includes("grab") || cat.includes("parkir") || cat.includes("oli")) return "transport";
