@@ -2,9 +2,18 @@ export const GEMINI_SYSTEM_PROMPT = `Anda adalah asisten AI akuntansi pribadi ya
 
 ATURAN UTAMA:
 1. Ekstraksi semua item pengeluaran yang disebutkan dalam teks pengguna.
-2. Tanggal harus dalam format YYYY-MM-DD. Gunakan tanggal hari ini jika pengguna tidak menyebutkan tanggal tertentu.
+2. ATURAN TANGGAL (SANGAT PENTING):
+   - Format tanggal wajib YYYY-MM-DD.
+   - Selalu jadikan tanggal referensi HARI INI yang tertera pada prompt sebagai patokan utama.
+   - Jika pengguna menyebut "tadi", "hari ini", "barusan", atau tidak menyebut tanggal: gunakan tanggal referensi HARI INI.
+   - Jika pengguna menyebut "kemarin", "kmrn": hitung mundur 1 hari (H-1) dari tanggal referensi.
+   - Jika pengguna menyebut "kemarin lusa", "2 hari lalu": hitung mundur 2 hari (H-2) dari tanggal referensi.
+   - Jika pengguna menyebut "3 hari lalu": hitung mundur 3 hari (H-3) dari tanggal referensi.
+   - Jika pengguna menyebut nama hari (contoh "Senin lalu"): hitung mundur ke hari tersebut yang paling dekat dari tanggal referensi.
+   - Jika pengguna menyebut tanggal angka (contoh "10 Sep", "tanggal 10"): gunakan tanggal tersebut pada bulan dan tahun tanggal referensi saat ini.
+   - JANGAN PERNAH mengarang tanggal/tahun masa lalu (seperti tahun 2024 atau 2023) jika tidak diminta secara eksplisit oleh pengguna.
 3. Konversikan singkatan nominal bahasa Indonesia:
-   - "rb", "k", "ribu" = dikalikan 1.000 (contoh: "25rb" -> 25000, "1.5jt" -> 1500000)
+   - "rb", "k", "ribu" = dikalikan 1.000 (contoh: "25rb" -> 25000, "1.5jt" -> 1500000, "2 ribu" -> 2000)
    - "jt", "juta" = dikalikan 1.000.000 (contoh: "2jt" -> 2000000)
    - "perak" / angka biasa = nilai nominal bulat integer
 4. Kategori yang diperbolehkan (pilih yang paling sesuai):
@@ -99,7 +108,7 @@ function tryParseCandidate(candidate) {
     return JSON.parse(fixed);
   } catch (e) {}
 
-  // 3. Gunakan JavaScript Object evaluation fallback (sangat ampuh untuk unquoted keys & format JS literal)
+  // 3. Gunakan JavaScript Object evaluation fallback
   try {
     const fn = new Function('return (' + trimmed + ')');
     const result = fn();
@@ -115,11 +124,9 @@ function parseJsonText(text) {
   const cleaned = sanitizeAndNormalizeJson(text);
   if (!cleaned) return [];
 
-  // Percobaan 1: Parse seluruh teks
   const direct = tryParseCandidate(cleaned);
   if (direct != null) return direct;
 
-  // Percobaan 2: Ambil substring array [...]
   const arrayStart = cleaned.indexOf('[');
   const arrayEnd = cleaned.lastIndexOf(']');
   if (arrayStart !== -1 && arrayEnd > arrayStart) {
@@ -128,7 +135,6 @@ function parseJsonText(text) {
     if (parsed != null) return parsed;
   }
 
-  // Percobaan 3: Ambil substring object {...}
   const objectStart = cleaned.indexOf('{');
   const objectEnd = cleaned.lastIndexOf('}');
   if (objectStart !== -1 && objectEnd > objectStart) {
@@ -185,6 +191,50 @@ function parseNominal(value) {
   return Math.round(number);
 }
 
+function normalizeDate(rawDate, refDateStr) {
+  const baseDate = refDateStr ? new Date(refDateStr) : new Date();
+  const formatIso = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return \`\${year}-\${month}-\${day}\`;
+  };
+
+  const todayStr = formatIso(baseDate);
+  if (!rawDate || typeof rawDate !== 'string') return todayStr;
+
+  const trimmed = rawDate.trim().toLowerCase();
+  if (trimmed === 'kemarin' || trimmed === 'kmrn') {
+    const yesterday = new Date(baseDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return formatIso(yesterday);
+  }
+  if (trimmed === 'kemarin lusa' || trimmed === '2 hari lalu' || trimmed === 'lusa kemarin') {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() - 2);
+    return formatIso(d);
+  }
+  if (trimmed === 'tadi' || trimmed === 'hari ini' || trimmed === 'barusan') {
+    return todayStr;
+  }
+
+  // Check valid YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = String(parseInt(isoMatch[2], 10)).padStart(2, '0');
+    const d = String(parseInt(isoMatch[3], 10)).padStart(2, '0');
+    // If AI hallucinated year 2024 when current year is different, adjust to base year
+    const currentYear = baseDate.getFullYear();
+    if (Math.abs(y - currentYear) > 1 && !trimmed.includes(String(y))) {
+      return \`\${currentYear}-\${m}-\${d}\`;
+    }
+    return \`\${y}-\${m}-\${d}\`;
+  }
+
+  return todayStr;
+}
+
 let expenseList = [];
 
 try {
@@ -198,14 +248,19 @@ try {
   throw new Error('Gagal melakukan parse JSON dari Gemini AI: ' + error.message);
 }
 
-const todayStr = new Date().toISOString().split('T')[0];
+// Extract reference date from trigger payload if available
+let refDate = null;
+try {
+  const webhookInput = $('Webhook (Trigger)')?.first()?.json;
+  refDate = webhookInput?.body?.currentDate || webhookInput?.currentDate;
+} catch (e) {}
 
 const validatedItems = expenseList.map((rawItem, index) => {
   const item = rawItem?.json || rawItem;
   const nominal = parseNominal(item?.jumlah ?? item?.nominal ?? item?.amount ?? item?.total);
   const desc = item?.deskripsi || item?.description || item?.item || item?.nama || '';
   const cat = item?.kategori || item?.category || 'Lain-lain';
-  const tgl = item?.tanggal || item?.date || todayStr;
+  const tgl = normalizeDate(item?.tanggal || item?.date, refDate);
 
   return {
     json: {
@@ -266,7 +321,7 @@ export const N8N_WORKFLOW_JSON = {
           "systemInstruction": GEMINI_SYSTEM_PROMPT,
           "temperature": 0.1
         },
-        "prompt": "=Ekstrak pengeluaran berikut menjadi JSON array sesuai instruksi:\n{{ $json.body.message || $json.message }}"
+        "prompt": "=Tanggal referensi HARI INI adalah: {{ $json.body.currentDate || $now.setZone('Asia/Jakarta').toFormat('yyyy-MM-dd') || $now.toFormat('yyyy-MM-dd') }} (WIB).\nJika ada kata 'tadi' / 'hari ini', gunakan tanggal referensi HARI INI.\nJika ada kata 'kemarin', gunakan 1 hari sebelumnya: {{ $now.setZone('Asia/Jakarta').minus({days: 1}).toFormat('yyyy-MM-dd') }}.\nJika ada kata 'kemarin lusa' / '2 hari lalu', gunakan 2 hari sebelumnya: {{ $now.setZone('Asia/Jakarta').minus({days: 2}).toFormat('yyyy-MM-dd') }}.\n\nEkstrak teks pengeluaran berikut menjadi JSON array sesuai instruksi:\n{{ $json.body.message || $json.message }}"
       },
       "id": "node-gemini-ai",
       "name": "Gemini AI (Structured Output)",
@@ -393,7 +448,8 @@ export const N8N_WORKFLOW_JSON = {
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1100, 300]
+      "position": [1100, 300],
+      "executeOnce": true
     }
   ],
   "connections": {
@@ -448,6 +504,7 @@ export const N8N_WORKFLOW_JSON = {
 };
 
 export const SAMPLE_PROMPTS = [
+  "Tadi beli lontong 2 ribu sama risol 3 ribu, sama kemarin beli roti bakar 2 bungkus 40 ribu",
   "Beli kopi 25rb, bensin pertalite 30rb, makan siang warteg 22rb",
   "Belanja bulanan supermarket 450rb, bayar token listrik 200rb, beli galon aqua 20rb",
   "Gojek ke kantor 18k, makan malam pecel lele 28k, laundry 35k",

@@ -7,6 +7,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { SAMPLE_PROMPTS } from "@/src/data/n8nWorkflow";
 import { parseExpenseTextLocally } from "@/src/services/geminiParser";
 import { ExpenseItem, ExpenseRecord, WebhookResponse } from "@/src/types";
+import { getLocalDateString } from "@/src/services/googleSheetsService";
 import confetti from "canvas-confetti";
 import { Send, Loader2, Sparkles, Settings2, AlertCircle, HelpCircle, Zap, RefreshCw, SlidersHorizontal, CheckCircle } from "lucide-react";
 
@@ -33,7 +34,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
     try {
       const parsedItems = parseExpenseTextLocally(inputText);
       if (parsedItems.length === 0) {
-        throw new Error("Nominal tidak ditemukan. Contoh: 'Beli kopi 25rb, bensin 30rb'.");
+        throw new Error("Nominal tidak ditemukan. Contoh: 'Beli lontong 2 ribu sama risol 3 ribu'.");
       }
       confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
       const total = parsedItems.reduce((acc, curr) => acc + curr.jumlah, 0);
@@ -58,7 +59,13 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
     if (!inputText.trim()) return;
     setLoading(true);
     setErrorInfo(null);
-    const payload = { message: inputText.trim() };
+
+    const todayDate = getLocalDateString();
+    const payload = {
+      message: inputText.trim(),
+      currentDate: todayDate,
+      timezone: "Asia/Jakarta"
+    };
 
     try {
       if (executionMode === "webhook") {
@@ -75,26 +82,38 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
               throw new Error("Gemini API Rate Limit (HTTP 429): Terlalu banyak request ke Google Gemini dalam waktu singkat. Anda bisa langsung klik tombol 'Ekstrak dengan AI Lokal' di bawah.");
             }
             if (res.status === 500) {
-              throw new Error(`n8n Server Error (500): Node di workflow mengalami kendala (${errText.substring(0, 100)}). Cek tab Executions di n8n.`);
+              throw new Error(`n8n Server Error (500): ${errText.substring(0, 150) || "Terjadi kendala pada node workflow."} Cek tab Executions di n8n.`);
             }
             throw new Error(`Webhook merespon status ${res.status}: ${errText.substring(0, 100) || "Error"}`);
           }
 
           const rawText = await res.text();
-          let data: WebhookResponse;
+          let data: any;
           try {
             data = JSON.parse(rawText);
+            if (typeof data === "string") {
+              try {
+                data = JSON.parse(data);
+              } catch {}
+            }
           } catch {
             throw new Error(`Respon n8n bukan JSON yang valid. Pastikan node Respond to Webhook aktif.`);
           }
 
           let rawItems: any[] = [];
           if (Array.isArray(data)) rawItems = data;
-          else if (Array.isArray((data as any).data)) rawItems = (data as any).data;
-          else if (Array.isArray((data as any).items)) rawItems = (data as any).items;
-          else if (data && typeof data === "object") rawItems = [data];
+          else if (Array.isArray(data?.data)) rawItems = data.data;
+          else if (Array.isArray(data?.items)) rawItems = data.items;
+          else if (Array.isArray(data?.expenses)) rawItems = data.expenses;
+          else if (data && typeof data === "object") {
+            if (data.status === "success" && !data.data && !data.items) {
+              // Valid response object without items array, fallback
+              rawItems = [];
+            } else {
+              rawItems = [data];
+            }
+          }
 
-          const todayStr = new Date().toISOString().split("T")[0];
           const normalizedItems: ExpenseItem[] = rawItems
             .map((raw) => {
               const item = raw?.json || raw || {};
@@ -121,9 +140,9 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
                 const k = Object.keys(item).find((k) => /tanggal|date/i.test(k));
                 if (k) tgl = item[k];
               }
-              return { tanggal: String(tgl || todayStr), kategori: String(cat || "Lain-lain"), deskripsi: String(desc || "Pengeluaran"), jumlah: nominal };
+              return { tanggal: String(tgl || todayDate), kategori: String(cat || "Lain-lain"), deskripsi: String(desc || "Pengeluaran"), jumlah: nominal };
             })
-            .filter((it) => it.jumlah > 0 || it.deskripsi);
+            .filter((it) => it.jumlah > 0 && it.deskripsi && !it.deskripsi.includes("Workflow was started"));
 
           // If webhook didn't return items, auto fallback to local parser
           if (normalizedItems.length === 0) {
@@ -147,7 +166,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
 
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
           const calculatedTotal = normalizedItems.reduce((acc: number, curr: any) => acc + (Number(curr.jumlah) || 0), 0);
-          const total = (data as any).total_nominal && (data as any).total_nominal > 0 ? (data as any).total_nominal : calculatedTotal;
+          const total = data?.total_nominal && data.total_nominal > 0 ? data.total_nominal : calculatedTotal;
 
           onSuccess({
             id: Date.now().toString(),

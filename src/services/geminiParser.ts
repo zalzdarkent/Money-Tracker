@@ -1,28 +1,63 @@
 import { ExpenseItem } from "@/src/types";
 
 /**
+ * Helper to format a Date into YYYY-MM-DD
+ */
+function formatDateIso(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Client/Offline parser fallback that extracts Indonesian expense text
  * into structured JSON items, mirroring what the n8n Gemini Node produces.
  */
-export function parseExpenseTextLocally(text: string): ExpenseItem[] {
-  const today = new Date().toISOString().split("T")[0];
+export function parseExpenseTextLocally(text: string, baseDate: Date = new Date()): ExpenseItem[] {
+  const todayStr = formatDateIso(baseDate);
   const items: ExpenseItem[] = [];
 
-  // Split by commas, newlines, "dan", "lalu", "+"
-  const parts = text.split(/[,;\n+]|\s+dan\s+|\s+lalu\s+/i);
+  // Split by commas, newlines, "dan", "lalu", "+", "sama"
+  const parts = text.split(/[,;\n+]|\s+dan\s+|\s+lalu\s+|\s+sama\s+/i);
+
+  let currentContextDate = todayStr;
 
   for (const rawPart of parts) {
     const part = rawPart.trim();
     if (!part || part.length < 3) continue;
 
-    // Extract amount
-    let amount = 0;
-    const amountRegex = /(\d+([.,]\d+)?)\s*(rb|ribu|k|jt|juta|perak|rp)?/i;
-    const match = part.match(amountRegex);
+    const lower = part.toLowerCase();
 
-    if (match) {
-      const numStr = match[1].replace(",", ".");
-      const unit = (match[3] || "").toLowerCase();
+    // Determine date context for this part
+    let itemDate = currentContextDate;
+    if (lower.includes("kemarin lusa") || lower.includes("2 hari lalu") || lower.includes("lusa kemarin")) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() - 2);
+      itemDate = formatDateIso(d);
+      currentContextDate = itemDate;
+    } else if (lower.includes("kemarin") || lower.includes("kmrn")) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() - 1);
+      itemDate = formatDateIso(d);
+      currentContextDate = itemDate;
+    } else if (lower.includes("tadi") || lower.includes("hari ini") || lower.includes("barusan")) {
+      itemDate = todayStr;
+      currentContextDate = itemDate;
+    }
+
+    const qtyRegex = /\b(\d+)\s*(bungkus|bgks|bks|porsi|pcs|buah|biji|butir|cup|gelas|piring|pack|paket|kotak|botol|kaleng|lembar|potong|item|pasang|kg|kilo|liter|ltr)\b/gi;
+    
+    // Find price match with explicit price unit first (e.g. 40rb, 40 ribu, 40k, 1.5jt, Rp 40.000)
+    const priceWithUnitRegex = /(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(rb|ribu|k|jt|juta|perak|rp)\b/i;
+    let priceMatch = part.match(priceWithUnitRegex);
+    
+    let amount = 0;
+    let priceMatchedStr = "";
+
+    if (priceMatch) {
+      const numStr = priceMatch[1].replace(",", ".");
+      const unit = (priceMatch[2] || "").toLowerCase();
       let num = parseFloat(numStr);
 
       if (unit === "rb" || unit === "ribu" || unit === "k") {
@@ -30,34 +65,40 @@ export function parseExpenseTextLocally(text: string): ExpenseItem[] {
       } else if (unit === "jt" || unit === "juta") {
         amount = Math.round(num * 1000000);
       } else {
-        if (num < 1000 && (part.toLowerCase().includes("ribu") || part.toLowerCase().includes("k"))) {
-          amount = Math.round(num * 1000);
-        } else {
-          amount = Math.round(num);
-        }
+        amount = Math.round(num);
       }
-    }
-
-    if (amount === 0) {
-      // Fallback number search
-      const digitsOnly = part.replace(/[^0-9]/g, "");
-      if (digitsOnly) {
-        const rawNum = parseInt(digitsOnly, 10);
-        if (rawNum < 500) {
-          amount = rawNum * 1000;
-        } else {
-          amount = rawNum;
+      priceMatchedStr = priceMatch[0];
+    } else {
+      // If no explicit price unit, remove quantity patterns first to avoid capturing quantity as price
+      const withoutQty = part.replace(qtyRegex, "");
+      const numberRegex = /(\d+([.,]\d+)?)/g;
+      const allNumbers = [...withoutQty.matchAll(numberRegex)];
+      if (allNumbers.length > 0) {
+        // Pick the last number
+        const lastNumMatch = allNumbers[allNumbers.length - 1];
+        const rawNum = parseInt(lastNumMatch[1].replace(/[^0-9]/g, ""), 10);
+        if (rawNum > 0) {
+          if (rawNum < 500 && (lower.includes("ribu") || lower.includes("k") || lower.includes("rb"))) {
+            amount = rawNum * 1000;
+          } else {
+            amount = rawNum;
+          }
+          priceMatchedStr = lastNumMatch[0];
         }
       }
     }
 
     if (amount <= 0) continue;
 
-    // Clean description by removing the amount part
-    let deskripsi = part
-      .replace(amountRegex, "")
-      .replace(/beli|bayar|isi|pesan|buat|untuk|ke|rp|idr/gi, "")
+    // Clean description by removing the amount and auxiliary words
+    let deskripsi = part;
+    if (priceMatchedStr) {
+      deskripsi = deskripsi.replace(priceMatchedStr, "");
+    }
+    deskripsi = deskripsi
+      .replace(/\b(kemarin lusa|2 hari lalu|kemarin|kmrn|tadi|hari ini|barusan|beli|bayar|isi|pesan|buat|untuk|ke|rp|idr|sama)\b/gi, "")
       .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, " ")
       .trim();
 
     if (!deskripsi) {
@@ -67,7 +108,6 @@ export function parseExpenseTextLocally(text: string): ExpenseItem[] {
     deskripsi = deskripsi.charAt(0).toUpperCase() + deskripsi.slice(1);
 
     // Determine category
-    const lower = part.toLowerCase();
     let kategori = "Lain-lain";
 
     if (
@@ -79,11 +119,17 @@ export function parseExpenseTextLocally(text: string): ExpenseItem[] {
       lower.includes("nasi") ||
       lower.includes("snack") ||
       lower.includes("gorengan") ||
+      lower.includes("lontong") ||
+      lower.includes("risol") ||
+      lower.includes("roti") ||
+      lower.includes("roti bakar") ||
       lower.includes("lele") ||
       lower.includes("resto") ||
       lower.includes("ayam") ||
       lower.includes("mie") ||
-      lower.includes("bakso")
+      lower.includes("bakso") ||
+      lower.includes("sate") ||
+      lower.includes("martabak")
     ) {
       kategori = "Makanan & Minuman";
     } else if (
@@ -149,7 +195,7 @@ export function parseExpenseTextLocally(text: string): ExpenseItem[] {
     }
 
     items.push({
-      tanggal: today,
+      tanggal: itemDate,
       kategori,
       deskripsi,
       jumlah: amount,
