@@ -6,17 +6,34 @@ import { Input } from "@/src/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
 import { SAMPLE_PROMPTS } from "@/src/data/n8nWorkflow";
 import { parseExpenseTextLocally } from "@/src/services/geminiParser";
+import { PhotoUploadInput } from "@/src/components/PhotoUploadInput";
 import { ExpenseItem, ExpenseRecord, WebhookResponse } from "@/src/types";
 import { getLocalDateString } from "@/src/services/googleSheetsService";
 import confetti from "canvas-confetti";
-import { Send, Loader2, Sparkles, Settings2, AlertCircle, HelpCircle, Zap, RefreshCw, SlidersHorizontal, CheckCircle } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Sparkles,
+  Settings2,
+  AlertCircle,
+  HelpCircle,
+  Zap,
+  RefreshCw,
+  SlidersHorizontal,
+  CheckCircle,
+  Type,
+  Camera,
+} from "lucide-react";
 
 interface ExpenseFormProps {
   onSuccess: (record: ExpenseRecord) => void;
   onOpenCorsGuide: () => void;
 }
 
+type InputMode = "text" | "photo";
+
 export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
+  const [inputMode, setInputMode] = useState<InputMode>("text");
   const [inputText, setInputText] = useState("");
   const [webhookUrl, setWebhookUrl] = useState((import.meta as any).env?.VITE_N8N_WEBHOOK_URL || "/webhook/catat-keuangan");
   const [executionMode, setExecutionMode] = useState<"webhook" | "direct_ai">("webhook");
@@ -24,11 +41,141 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
   const [errorInfo, setErrorInfo] = useState<{ message: string; isCorsOrNetwork?: boolean; canFallback?: boolean } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Photo mode state
+  const [photoItems, setPhotoItems] = useState<ExpenseItem[]>([]);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoReady, setPhotoReady] = useState(false);
+
   const handleSelectSample = (sample: string) => {
     setInputText(sample);
     setErrorInfo(null);
   };
 
+  const handleSwitchMode = (mode: InputMode) => {
+    setInputMode(mode);
+    setErrorInfo(null);
+    setPhotoReady(false);
+    setPhotoItems([]);
+  };
+
+  // Called by PhotoUploadInput when AI extraction completes
+  const handlePhotoExtracted = (items: ExpenseItem[], previewUrl: string) => {
+    setPhotoItems(items);
+    setPhotoPreviewUrl(previewUrl);
+    setPhotoReady(true);
+    setErrorInfo(null);
+  };
+
+  const handlePhotoError = (message: string) => {
+    setErrorInfo({ message, canFallback: false });
+    setPhotoReady(false);
+  };
+
+  // Submit photo-extracted items directly (no second AI call needed)
+  const handlePhotoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!photoReady || photoItems.length === 0) return;
+
+    setLoading(true);
+    setErrorInfo(null);
+
+    const todayDate = getLocalDateString();
+    const total = photoItems.reduce((acc, it) => acc + it.jumlah, 0);
+
+    try {
+      if (executionMode === "webhook") {
+        // Send the pre-parsed items to webhook as a regular expense payload
+        // so n8n can still append them to Google Sheets.
+        // We pass a special field `parsedItems` that the updated n8n workflow can use.
+        const payload = {
+          message: photoItems.map((it) => `${it.deskripsi} ${it.jumlah}`).join(", "),
+          currentDate: todayDate,
+          timezone: "Asia/Jakarta",
+          source: "photo_scan",
+          parsedItems: photoItems,
+        };
+
+        try {
+          const res = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (res.ok) {
+            // Webhook accepted — great, use what AI already extracted
+            confetti({ particleCount: 80, spread: 70, origin: { y: 0.75 } });
+            onSuccess({
+              id: Date.now().toString(),
+              rawInput: `[Foto Struk] ${photoItems.length} item`,
+              items: photoItems,
+              totalAmount: total,
+              createdAt: new Date().toISOString(),
+              source: "photo_scan",
+              status: "success",
+            });
+            setPhotoItems([]);
+            setPhotoReady(false);
+            setPhotoPreviewUrl(null);
+            return;
+          }
+        } catch (fetchErr: any) {
+          // Webhook failed — fallback: save locally and warn
+          const isNetwork = fetchErr.name === "TypeError" || fetchErr.message?.includes("Failed to fetch");
+          if (isNetwork) {
+            setErrorInfo({
+              message: `Gagal kirim ke webhook n8n. Data foto sudah diekstrak — klik "Simpan Lokal" untuk menyimpan tanpa webhook.`,
+              isCorsOrNetwork: true,
+              canFallback: true,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // Direct AI / fallback: save result locally
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.75 } });
+      onSuccess({
+        id: Date.now().toString(),
+        rawInput: `[Foto Struk] ${photoItems.length} item`,
+        items: photoItems,
+        totalAmount: total,
+        createdAt: new Date().toISOString(),
+        source: "photo_scan",
+        status: "success",
+      });
+      setPhotoItems([]);
+      setPhotoReady(false);
+      setPhotoPreviewUrl(null);
+    } catch (err: any) {
+      setErrorInfo({ message: err.message || "Terjadi kesalahan.", canFallback: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save photo items locally without webhook
+  const handlePhotoSaveLocal = () => {
+    if (!photoItems.length) return;
+    const total = photoItems.reduce((acc, it) => acc + it.jumlah, 0);
+    confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 } });
+    onSuccess({
+      id: Date.now().toString(),
+      rawInput: `[Foto Struk] ${photoItems.length} item`,
+      items: photoItems,
+      totalAmount: total,
+      createdAt: new Date().toISOString(),
+      source: "photo_scan",
+      status: "success",
+    });
+    setPhotoItems([]);
+    setPhotoReady(false);
+    setPhotoPreviewUrl(null);
+    setErrorInfo(null);
+  };
+
+  // ---- Text mode handlers (unchanged from original) ----
   const handleLocalFallback = () => {
     if (!inputText.trim()) return;
     try {
@@ -54,7 +201,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleTextSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
     setLoading(true);
@@ -64,7 +211,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
     const payload = {
       message: inputText.trim(),
       currentDate: todayDate,
-      timezone: "Asia/Jakarta"
+      timezone: "Asia/Jakarta",
     };
 
     try {
@@ -92,9 +239,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
           try {
             data = JSON.parse(rawText);
             if (typeof data === "string") {
-              try {
-                data = JSON.parse(data);
-              } catch {}
+              try { data = JSON.parse(data); } catch {}
             }
           } catch {
             throw new Error(`Respon n8n bukan JSON yang valid. Pastikan node Respond to Webhook aktif.`);
@@ -106,19 +251,14 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
           else if (Array.isArray(data?.items)) rawItems = data.items;
           else if (Array.isArray(data?.expenses)) rawItems = data.expenses;
           else if (data && typeof data === "object") {
-            if (data.status === "success" && !data.data && !data.items) {
-              // Valid response object without items array, fallback
-              rawItems = [];
-            } else {
-              rawItems = [data];
-            }
+            if (data.status === "success" && !data.data && !data.items) rawItems = [];
+            else rawItems = [data];
           }
 
           const normalizedItems: ExpenseItem[] = rawItems
             .map((raw) => {
               const item = raw?.json || raw || {};
-              let rawNominal =
-                item.jumlah ?? item.Jumlah ?? item["Jumlah (Rp)"] ?? item.nominal ?? item.Nominal ?? item.amount ?? item.Total;
+              let rawNominal = item.jumlah ?? item.Jumlah ?? item["Jumlah (Rp)"] ?? item.nominal ?? item.Nominal ?? item.amount ?? item.Total;
               if (rawNominal == null) {
                 const k = Object.keys(item).find((k) => /jumlah|nominal|amount|total/i.test(k));
                 if (k) rawNominal = item[k];
@@ -144,21 +284,12 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
             })
             .filter((it) => it.jumlah > 0 && it.deskripsi && !it.deskripsi.includes("Workflow was started"));
 
-          // If webhook didn't return items, auto fallback to local parser
           if (normalizedItems.length === 0) {
             const fallbackItems = parseExpenseTextLocally(inputText);
             if (fallbackItems.length > 0) {
               confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
               const fallbackTotal = fallbackItems.reduce((acc, it) => acc + it.jumlah, 0);
-              onSuccess({
-                id: Date.now().toString(),
-                rawInput: inputText,
-                items: fallbackItems,
-                totalAmount: fallbackTotal,
-                createdAt: new Date().toISOString(),
-                source: "gemini_direct",
-                status: "success",
-              });
+              onSuccess({ id: Date.now().toString(), rawInput: inputText, items: fallbackItems, totalAmount: fallbackTotal, createdAt: new Date().toISOString(), source: "gemini_direct", status: "success" });
               setInputText("");
               return;
             }
@@ -168,15 +299,7 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
           const calculatedTotal = normalizedItems.reduce((acc: number, curr: any) => acc + (Number(curr.jumlah) || 0), 0);
           const total = data?.total_nominal && data.total_nominal > 0 ? data.total_nominal : calculatedTotal;
 
-          onSuccess({
-            id: Date.now().toString(),
-            rawInput: inputText,
-            items: normalizedItems,
-            totalAmount: total,
-            createdAt: new Date().toISOString(),
-            source: "n8n_webhook",
-            status: "success",
-          });
+          onSuccess({ id: Date.now().toString(), rawInput: inputText, items: normalizedItems, totalAmount: total, createdAt: new Date().toISOString(), source: "n8n_webhook", status: "success" });
           setInputText("");
         } catch (fetchErr: any) {
           const isNetwork = fetchErr.name === "TypeError" || fetchErr.message.includes("Failed to fetch") || fetchErr.message.includes("CORS");
@@ -197,6 +320,9 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
     }
   };
 
+  const isPhotoMode = inputMode === "photo";
+  const canSubmit = isPhotoMode ? photoReady && !loading : !loading && inputText.trim().length > 0;
+
   return (
     <Card className="border-[#27272a] bg-[#18181b] shadow-2xl overflow-hidden rounded-2xl">
       <CardHeader className="pb-4">
@@ -207,7 +333,9 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
             </div>
             <div>
               <CardTitle className="text-base font-semibold text-white">Tambah Pengeluaran</CardTitle>
-              <CardDescription className="text-xs text-zinc-400">Tulis dengan bahasa sehari-hari.</CardDescription>
+              <CardDescription className="text-xs text-zinc-400">
+                {isPhotoMode ? "Upload foto struk / nota / bon belanja." : "Tulis dengan bahasa sehari-hari."}
+              </CardDescription>
             </div>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowSettings(!showSettings)} className="text-xs text-zinc-400 hover:text-zinc-200 gap-1.5">
@@ -216,6 +344,37 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
           </Button>
         </div>
 
+        {/* Input Mode Toggle */}
+        <div className="mt-4 flex items-center gap-1 p-1 rounded-xl bg-[#121214] border border-[#27272a] w-full sm:w-auto">
+          <button
+            type="button"
+            id="mode-text-btn"
+            onClick={() => handleSwitchMode("text")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              !isPhotoMode
+                ? "bg-[#27272a] text-white shadow-sm"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Type className="w-3.5 h-3.5" />
+            Ketik Teks
+          </button>
+          <button
+            type="button"
+            id="mode-photo-btn"
+            onClick={() => handleSwitchMode("photo")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              isPhotoMode
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5" />
+            Scan Foto
+          </button>
+        </div>
+
+        {/* Settings Panel */}
         {showSettings && (
           <div className="mt-4 p-4 rounded-xl border border-[#27272a] bg-[#121214] space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -262,50 +421,66 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
         )}
       </CardHeader>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={isPhotoMode ? handlePhotoSubmit : handleTextSubmit}>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Textarea
-              value={inputText}
-              onChange={(e) => {
-                setInputText(e.target.value);
-                if (errorInfo) setErrorInfo(null);
-              }}
-              placeholder="Contoh: Beli kopi 25rb, bensin pertalite 30rb, makan siang warteg 22rb..."
-              rows={4}
-              className="text-sm font-sans resize-none"
+          {/* TEXT MODE */}
+          {!isPhotoMode && (
+            <>
+              <div className="relative">
+                <Textarea
+                  value={inputText}
+                  onChange={(e) => {
+                    setInputText(e.target.value);
+                    if (errorInfo) setErrorInfo(null);
+                  }}
+                  placeholder="Contoh: Beli kopi 25rb, bensin pertalite 30rb, makan siang warteg 22rb..."
+                  rows={4}
+                  className="text-sm font-sans resize-none"
+                />
+                <div className="absolute right-3 bottom-3 text-[11px] text-zinc-500 font-mono">{inputText.length} huruf</div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 font-medium">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  Contoh Kalimat:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SAMPLE_PROMPTS.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectSample(prompt)}
+                      className="px-3 py-1.5 rounded-xl text-xs bg-[#121214] hover:bg-[#18181b] text-zinc-300 border border-[#27272a] text-left truncate max-w-full cursor-pointer transition-all hover:border-zinc-500"
+                    >
+                      "{prompt.length > 42 ? prompt.slice(0, 42) + "..." : prompt}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* PHOTO MODE */}
+          {isPhotoMode && (
+            <PhotoUploadInput
+              onExtracted={handlePhotoExtracted}
+              onError={handlePhotoError}
+              disabled={loading}
             />
-            <div className="absolute right-3 bottom-3 text-[11px] text-zinc-500 font-mono">{inputText.length} huruf</div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 font-medium">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              Contoh Kalimat:
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {SAMPLE_PROMPTS.map((prompt, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleSelectSample(prompt)}
-                  className="px-3 py-1.5 rounded-xl text-xs bg-[#121214] hover:bg-[#18181b] text-zinc-300 border border-[#27272a] text-left truncate max-w-full cursor-pointer transition-all hover:border-zinc-500"
-                >
-                  "{prompt.length > 42 ? prompt.slice(0, 42) + "..." : prompt}"
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* Error / Alert */}
           {errorInfo && (
             <Alert variant="destructive" className="bg-red-950/30 border-red-900/60 text-red-200">
               <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
               <div className="space-y-2 w-full">
                 <AlertTitle className="text-red-300 font-semibold text-xs">Pemberitahuan</AlertTitle>
                 <AlertDescription className="text-red-200/90 text-xs leading-relaxed">{errorInfo.message}</AlertDescription>
-                
+
                 <div className="pt-2 flex flex-wrap gap-2">
-                  {errorInfo.canFallback && (
+                  {/* Text mode fallback */}
+                  {!isPhotoMode && errorInfo.canFallback && (
                     <Button
                       type="button"
                       size="sm"
@@ -314,6 +489,18 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1" />
                       Ekstrak dengan AI Lokal Sekarang
+                    </Button>
+                  )}
+                  {/* Photo mode — save local fallback */}
+                  {isPhotoMode && errorInfo.canFallback && photoItems.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handlePhotoSaveLocal}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-7.5 text-xs rounded-lg cursor-pointer"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                      Simpan Lokal (Tanpa Webhook)
                     </Button>
                   )}
                   {errorInfo.isCorsOrNetwork && (
@@ -329,13 +516,37 @@ export function ExpenseForm({ onSuccess, onOpenCorsGuide }: ExpenseFormProps) {
 
         <CardFooter className="flex items-center justify-between gap-3 bg-[#121214] p-4 border-t border-[#27272a]">
           <span className="text-xs text-zinc-400 font-mono flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${executionMode === "webhook" ? "bg-emerald-400 animate-pulse" : "bg-purple-400"}`} />
-            {executionMode === "webhook" ? "Mode: n8n Webhook" : "Mode: AI Lokal Langsung"}
+            {isPhotoMode ? (
+              <>
+                <span className={`w-2 h-2 rounded-full ${photoReady ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                {photoReady ? `${photoItems.length} item siap disimpan` : "Mode: Scan Foto AI"}
+              </>
+            ) : (
+              <>
+                <span className={`w-2 h-2 rounded-full ${executionMode === "webhook" ? "bg-emerald-400 animate-pulse" : "bg-purple-400"}`} />
+                {executionMode === "webhook" ? "Mode: n8n Webhook" : "Mode: AI Lokal Langsung"}
+              </>
+            )}
           </span>
-          <Button type="submit" disabled={loading || !inputText.trim()} size="lg" className="bg-emerald-500 hover:bg-emerald-400 text-black px-6 py-2.5 rounded-xl font-bold text-sm cursor-pointer shadow-lg shadow-emerald-500/10 active:scale-95 transition-all">
+
+          <Button
+            type="submit"
+            id="expense-submit-btn"
+            disabled={!canSubmit}
+            size="lg"
+            className={`px-6 py-2.5 rounded-xl font-bold text-sm cursor-pointer shadow-lg active:scale-95 transition-all ${
+              isPhotoMode
+                ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/10"
+                : "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/10"
+            }`}
+          >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Memproses...
+                <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...
+              </>
+            ) : isPhotoMode ? (
+              <>
+                <CheckCircle className="w-4 h-4" /> Konfirmasi & Simpan
               </>
             ) : (
               <>

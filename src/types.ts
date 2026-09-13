@@ -25,7 +25,7 @@ export interface ExpenseRecord {
   items: ExpenseItem[];
   totalAmount: number;
   createdAt: string;
-  source: "n8n_webhook" | "gemini_direct" | "mock_simulation";
+  source: "n8n_webhook" | "gemini_direct" | "mock_simulation" | "photo_scan";
   status: "success" | "failed";
 }
 
