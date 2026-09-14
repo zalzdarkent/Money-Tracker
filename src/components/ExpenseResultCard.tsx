@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/src/components/ui/ca
 import { Badge, getCategoryBadgeVariant } from "@/src/components/ui/badge";
 import { formatRupiah } from "@/src/lib/utils";
 import { WebhookResponse } from "@/src/types";
-import { CheckCircle2, Calendar, Table as TableIcon } from "lucide-react";
+import { CheckCircle2, Calendar, Table as TableIcon, Camera } from "lucide-react";
 
 interface ExpenseResultCardProps {
   response: WebhookResponse;
@@ -50,12 +50,21 @@ export function ExpenseResultCard({ response, source }: ExpenseResultCardProps) 
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold text-white">{response.message || "Berhasil disimpan"}</CardTitle>
+<<<<<<< HEAD
                 <p className="text-[11px] text-zinc-400 font-mono">
                   {source === "receipt_scan"
                     ? "📸 via Scan Struk Gemini"
                     : source === "gemini_direct"
                     ? "⚡ via Direct Gemini AI"
                     : "🔄 via n8n Webhook"}
+=======
+                <p className="text-[11px] text-zinc-500 font-mono">
+                  {source === "n8n_webhook" ? "via Webhook" : source === "photo_scan" ? (
+                    <span className="flex items-center gap-1 text-emerald-400">
+                      <Camera className="w-3 h-3" /> via Foto AI
+                    </span>
+                  ) : "via AI Lokal"}
+>>>>>>> e83da5218875dbd8e1a1655e95ae82bb57f04977
                 </p>
               </div>
             </div>
