@@ -89,3 +89,18 @@ export function DialogDescription({
     </p>
   );
 }
+
+export function DialogFooter({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("flex items-center justify-end gap-2 pt-4 border-t border-[#27272a]", className)}>
+      {children}
+    </div>
+  );
+}
+

@@ -50,7 +50,13 @@ export function ExpenseResultCard({ response, source }: ExpenseResultCardProps) 
               </div>
               <div>
                 <CardTitle className="text-sm font-semibold text-white">{response.message || "Berhasil disimpan"}</CardTitle>
-                <p className="text-[11px] text-zinc-500 font-mono">{source === "n8n_webhook" ? "via Webhook" : "via AI Lokal"}</p>
+                <p className="text-[11px] text-zinc-400 font-mono">
+                  {source === "receipt_scan"
+                    ? "📸 via Scan Struk Gemini"
+                    : source === "gemini_direct"
+                    ? "⚡ via Direct Gemini AI"
+                    : "🔄 via n8n Webhook"}
+                </p>
               </div>
             </div>
             <div className="text-right">

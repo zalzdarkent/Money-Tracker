@@ -19,14 +19,33 @@ export interface WebhookResponse {
   timestamp?: string;
 }
 
+export interface ReceiptItem {
+  deskripsi: string;
+  kategori: string;
+  jumlah: number;
+  qty?: number;
+}
+
+export interface ReceiptScanResult {
+  merchantName: string;
+  date: string;
+  totalAmount: number;
+  items: ReceiptItem[];
+  tax?: number;
+  discount?: number;
+  summaryText?: string;
+  note?: string;
+}
+
 export interface ExpenseRecord {
   id: string;
   rawInput: string;
   items: ExpenseItem[];
   totalAmount: number;
   createdAt: string;
-  source: "n8n_webhook" | "gemini_direct" | "mock_simulation";
+  source: "n8n_webhook" | "gemini_direct" | "mock_simulation" | "receipt_scan";
   status: "success" | "failed";
+  receiptImage?: string; // Base64 thumbnail if available
 }
 
 export interface N8nNodeConfig {

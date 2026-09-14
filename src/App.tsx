@@ -118,13 +118,16 @@ export default function App() {
       loadMonthlyTotalFromSheets();
     }, 1200);
 
+    const isScan = record.source === "receipt_scan";
     setToasts((prev) => [
       ...prev,
       {
         id: Date.now().toString(),
         type: "success",
-        title: "Berhasil disimpan",
-        description: `${record.items.length} item ke Google Sheets.`,
+        title: isScan ? "Struk Berhasil Dicatat! 📸" : "Berhasil disimpan",
+        description: isScan
+          ? `${record.items.length} item dari struk belanja berhasil dicatat.`
+          : `${record.items.length} item pengeluaran berhasil dicatat.`,
         itemCount: record.items.length,
         totalNominal: record.totalAmount,
         actionLabel: "Lihat Riwayat",
@@ -274,14 +277,6 @@ export default function App() {
 
                   <HistoryList records={history} onClear={handleClearHistory} />
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border border-[#27272a] rounded-2xl bg-[#121214]/60 text-xs text-zinc-500">
-                <span className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Siap • Menunggu input
-                </span>
-                <span className="font-mono hidden sm:block">POST /webhook/catat-keuangan</span>
               </div>
             </div>
           )}
