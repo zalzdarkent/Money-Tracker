@@ -1,5 +1,6 @@
 import { ExpenseItem, ReceiptScanResult } from "@/src/types";
 import { parseExpenseTextLocally } from "./geminiParser";
+import { callGeminiProxy } from "./geminiProxy";
 
 /**
  * Helper to get current stored Gemini API key
@@ -123,30 +124,11 @@ async function callGeminiApi(
   apiKey: string,
   parts: any[]
 ): Promise<string> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    }),
+  return callGeminiProxy({
+    model,
+    contents: [{ parts }],
+    generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
   });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    throw new Error(`Gemini API error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  return text;
 }
 
 /**
@@ -155,13 +137,6 @@ async function callGeminiApi(
 export async function scanReceiptWithGemini(
   imageDataUrlOrBase64: string
 ): Promise<ReceiptScanResult> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "Gemini API Key belum dikonfigurasi. Masukkan API Key di pengaturan atau di file .env."
-    );
-  }
-
   const { base64, mimeType } = cleanBase64(imageDataUrlOrBase64);
   const todayStr = getTodayIso();
 
@@ -204,7 +179,7 @@ Harap kembalikan HANYA format JSON valid tanpa format markdown lain.`;
         { text: prompt },
       ];
 
-      const text = await callGeminiApi(model, apiKey, parts);
+      const text = await callGeminiApi(model, "", parts);
       const parsed = safeJsonParse<any>(text, null);
 
       if (parsed && typeof parsed === "object") {
@@ -256,13 +231,6 @@ export async function parseExpenseTextWithGemini(
   text: string,
   baseDate: Date = new Date()
 ): Promise<ExpenseItem[]> {
-  const apiKey = getGeminiApiKey();
-
-  // If no API key, use local regex parser directly
-  if (!apiKey) {
-    return parseExpenseTextLocally(text, baseDate);
-  }
-
   try {
     const todayStr = getTodayIso();
     const prompt = `Anda adalah asisten AI akuntansi pribadi.
@@ -285,7 +253,7 @@ Kembalikan HANYA array JSON valid.`;
     const model = getGeminiModel();
     const parts = [{ text: prompt }];
 
-    const rawText = await callGeminiApi(model, apiKey, parts);
+    const rawText = await callGeminiApi(model, "", parts);
     const parsed = safeJsonParse<any[]>(rawText, []);
 
     if (Array.isArray(parsed) && parsed.length > 0) {

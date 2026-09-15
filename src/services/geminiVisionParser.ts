@@ -1,18 +1,12 @@
 import { ExpenseItem } from "@/src/types";
 import { getLocalDateString } from "@/src/services/googleSheetsService";
+import { callGeminiProxy } from "@/src/services/geminiProxy";
 
 // ----------------------------------------------------------------
 // Gemini Vision Parser
 // Reads a receipt/nota photo and extracts expense items using
 // Gemini 1.5 Flash multimodal API (supports image + text prompt).
 // ----------------------------------------------------------------
-
-const GEMINI_API_KEY =
-  (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-  (import.meta as any).env?.VITE_GEMINI_KEY ||
-  "";
-
-const GEMINI_VISION_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 const CATEGORIES = [
   "Makanan & Minuman",
@@ -198,12 +192,6 @@ export async function parseExpenseFromImage(imageFile: File): Promise<{
   rawText: string;
   imagePreviewUrl: string;
 }> {
-  if (!GEMINI_API_KEY) {
-    throw new Error(
-      "VITE_GEMINI_API_KEY belum diset di file .env. Tambahkan: VITE_GEMINI_API_KEY=AIzaSy..."
-    );
-  }
-
   const todayDate = getLocalDateString();
 
   // Create object URL for preview
@@ -215,38 +203,8 @@ export async function parseExpenseFromImage(imageFile: File): Promise<{
   // Build and send request to Gemini Vision API
   const payload = buildRequestPayload(base64, mimeType, todayDate);
 
-  const res = await fetch(GEMINI_VISION_API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    if (res.status === 429) {
-      throw new Error(
-        "Rate limit Gemini API (429): Terlalu banyak request. Tunggu beberapa detik lalu coba lagi."
-      );
-    }
-    if (res.status === 400) {
-      throw new Error(
-        `Gambar tidak dapat diproses (400): ${errText.slice(0, 200)}. Pastikan format gambar adalah JPG/PNG/WEBP.`
-      );
-    }
-    throw new Error(
-      `Gemini Vision API error ${res.status}: ${errText.slice(0, 200)}`
-    );
-  }
-
-  const responseData = await res.json();
-
   // Extract text from Gemini response
-  const rawText: string =
-    responseData?.candidates?.[0]?.content?.parts
-      ?.map((p: any) => p?.text || "")
-      .join("\n") ||
-    responseData?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "";
+  const rawText = await callGeminiProxy({ model: "gemini-1.5-flash", ...payload });
 
   if (!rawText.trim()) {
     throw new Error(

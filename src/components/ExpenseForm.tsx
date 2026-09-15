@@ -9,8 +9,6 @@ import { SAMPLE_PROMPTS } from "@/src/data/prompts";
 import { parseExpenseTextLocally } from "@/src/services/geminiParser";
 import {
   parseExpenseTextWithGemini,
-  getGeminiApiKey,
-  setGeminiApiKey,
   getGeminiModel,
   setGeminiModel,
 } from "@/src/services/geminiClient";
@@ -49,13 +47,11 @@ export function ExpenseForm({ onSuccess, onOpenSheetsGuide }: ExpenseFormProps) 
   const [scannerModalOpen, setScannerModalOpen] = useState(false);
 
   // Settings state
-  const [customKey, setCustomKeyState] = useState(() => getGeminiApiKey());
   const [customModel, setCustomModelState] = useState(() => getGeminiModel());
   const [customGasUrl, setCustomGasUrlState] = useState(() => getGoogleScriptUrl());
   const [keySaved, setKeySaved] = useState(false);
 
   const handleSaveSettings = () => {
-    setGeminiApiKey(customKey);
     setGeminiModel(customModel);
     setGoogleScriptUrl(customGasUrl);
     setKeySaved(true);
@@ -154,16 +150,6 @@ export function ExpenseForm({ onSuccess, onOpenSheetsGuide }: ExpenseFormProps) 
                 <Camera className="w-3.5 h-3.5" />
                 Scan Struk AI
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSettings(!showSettings)}
-                className="h-8 text-xs text-zinc-400 hover:text-white gap-1"
-              >
-                <Settings2 className="w-3.5 h-3.5" />
-                {showSettings ? "Tutup" : "Pengaturan"}
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -183,16 +169,6 @@ export function ExpenseForm({ onSuccess, onOpenSheetsGuide }: ExpenseFormProps) 
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] text-zinc-400 block mb-1">Gemini API Key</label>
-                <Input
-                  type="password"
-                  value={customKey}
-                  onChange={(e) => setCustomKeyState(e.target.value)}
-                  placeholder="AIzaSy..."
-                  className="h-8 text-xs bg-[#18181b] border-[#27272a]"
-                />
-              </div>
               <div>
                 <label className="text-[11px] text-zinc-400 block mb-1">Gemini Model</label>
                 <Input
