@@ -1,21 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { ExpenseForm } from "@/src/components/ExpenseForm";
 import { ExpenseResultCard } from "@/src/components/ExpenseResultCard";
-import { N8nWorkflowViewer } from "@/src/components/N8nWorkflowViewer";
 import { SheetsHistoryDashboard } from "@/src/components/SheetsHistoryDashboard";
 import { HistoryList } from "@/src/components/HistoryList";
 import { FolderStructureGuide } from "@/src/components/FolderStructureGuide";
-import { CorsGuideModal } from "@/src/components/CorsGuideModal";
 import { GoogleSheetsGuideModal } from "@/src/components/GoogleSheetsGuideModal";
 import { Toaster, ToastMessage } from "@/src/components/ui/toaster";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Button } from "@/src/components/ui/button";
 import { ExpenseRecord } from "@/src/types";
 import { formatRupiah } from "@/src/lib/utils";
-import { fetchGoogleSheetsData, getLocalDateString } from "@/src/services/googleSheetsService";
-import { Workflow, Table, ShieldCheck, BookOpen, ReceiptText, BrainCircuit, BarChart3 } from "lucide-react";
+import { fetchGoogleSheetsData, getLocalDateString, getGoogleScriptUrl } from "@/src/services/googleSheetsService";
+import { Table, BookOpen, ReceiptText, BrainCircuit, BarChart3, Zap } from "lucide-react";
 
-const VALID_TABS = ["tracker", "sheets-history", "workflow", "structure"];
+const VALID_TABS = ["tracker", "sheets-history", "structure"];
 
 export default function App() {
   const [lastResult, setLastResult] = useState<{ record: ExpenseRecord } | null>(null);
@@ -29,7 +27,6 @@ export default function App() {
     }
   });
 
-  const [corsModalOpen, setCorsModalOpen] = useState(false);
   const [sheetsModalOpen, setSheetsModalOpen] = useState(false);
 
   const getInitialTab = (): string => {
@@ -87,7 +84,7 @@ export default function App() {
     try {
       const res = await fetchGoogleSheetsData(spreadsheetId);
       if (res.success && res.data.length > 0) {
-        const currentMonthPrefix = getLocalDateString().slice(0, 7); // e.g. "2026-09"
+        const currentMonthPrefix = getLocalDateString().slice(0, 7);
         const thisMonthItems = res.data.filter((item) => item.tanggal.startsWith(currentMonthPrefix));
         const monthTotal = thisMonthItems.reduce((acc, curr) => acc + (Number(curr.jumlah) || 0), 0);
         setMonthlyVelocity(monthTotal);
@@ -118,7 +115,7 @@ export default function App() {
       loadMonthlyTotalFromSheets();
     }, 1200);
 
-    const isScan = record.source === "receipt_scan";
+    const isScan = record.source === "receipt_scan" || record.source === "photo_scan";
     setToasts((prev) => [
       ...prev,
       {
@@ -147,6 +144,8 @@ export default function App() {
     } catch {}
   };
 
+  const hasGasUrl = Boolean(getGoogleScriptUrl());
+
   return (
     <div className="min-h-screen w-full bg-[#09090b] text-[#fafafa] flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
       <Toaster toasts={toasts} onDismiss={handleDismissToast} />
@@ -173,20 +172,11 @@ export default function App() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCorsModalOpen(true)}
-              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 mr-1 text-amber-400" />
-              CORS
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setSheetsModalOpen(true)}
               className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white"
             >
               <Table className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-              Sheets
+              Setup Google Sheets
             </Button>
           </div>
         </div>
@@ -197,11 +187,11 @@ export default function App() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#27272a] pb-6">
             <div className="max-w-xl">
               <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">Catat Pengeluaran</h2>
-              <p className="text-zinc-400 text-sm mt-1">Ketik dengan bahasa sehari-hari, otomatis masuk ke Google Sheets.</p>
+              <p className="text-zinc-400 text-sm mt-1">Ketik bahasa sehari-hari atau scan struk belanja.</p>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-              <TabsList className="grid grid-cols-2 sm:grid-cols-4 max-w-xl w-full bg-[#121214] border border-[#27272a]">
+              <TabsList className="grid grid-cols-3 max-w-md w-full bg-[#121214] border border-[#27272a]">
                 <TabsTrigger value="tracker" className="text-xs">
                   <ReceiptText className="w-3.5 h-3.5" />
                   <span>Catat</span>
@@ -209,10 +199,6 @@ export default function App() {
                 <TabsTrigger value="sheets-history" className="text-xs">
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span>Riwayat</span>
-                </TabsTrigger>
-                <TabsTrigger value="workflow" className="text-xs">
-                  <Workflow className="w-3.5 h-3.5" />
-                  <span>Workflow</span>
                 </TabsTrigger>
                 <TabsTrigger value="structure" className="text-xs">
                   <BookOpen className="w-3.5 h-3.5" />
@@ -226,14 +212,14 @@ export default function App() {
             <div className="space-y-8 animate-in fade-in-50 duration-200">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-7 space-y-8">
-                  <ExpenseForm onSuccess={handleExpenseSuccess} onOpenCorsGuide={() => setCorsModalOpen(true)} />
+                  <ExpenseForm onSuccess={handleExpenseSuccess} onOpenSheetsGuide={() => setSheetsModalOpen(true)} />
                   {lastResult && (
                     <ExpenseResultCard
                       response={{
                         status: "success",
                         total_nominal: lastResult.record.totalAmount,
                         data: lastResult.record.items,
-                        message: `${lastResult.record.items.length} item berhasil disimpan`,
+                        message: `${lastResult.record.items.length} item berhasil dicatat`,
                       }}
                       source={lastResult.record.source}
                     />
@@ -242,36 +228,50 @@ export default function App() {
 
                 <div className="lg:col-span-5 space-y-6">
                   <div className="rounded-2xl border border-[#27272a] bg-[#18181b] p-5 space-y-4">
-                    <p className="text-xs font-semibold text-zinc-300">Status Koneksi</p>
+                    <p className="text-xs font-semibold text-zinc-300">Status Sistem</p>
                     <div className="space-y-3">
                       <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
                         <div>
-                          <span className="text-xs text-zinc-200">n8n Webhook</span>
-                          <p className="text-[11px] text-zinc-500 font-mono">localhost:5678</p>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono">Aktif</span>
-                      </div>
-                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
-                        <div>
-                          <span className="text-xs text-zinc-200">Google Sheets</span>
-                          <p className="text-[11px] text-zinc-500 font-mono">Terhubung</p>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono">OK</span>
-                      </div>
-                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
-                        <div>
                           <span className="text-xs text-zinc-200">Gemini AI</span>
-                          <p className="text-[11px] text-zinc-500 font-mono">Parser</p>
+                          <p className="text-[11px] text-zinc-500 font-mono">Ekstraksi & Scan Struk</p>
                         </div>
-                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded font-mono">AI</span>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded font-mono">
+                          Aktif
+                        </span>
+                      </div>
+                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                          <span className="text-xs text-zinc-200">Google Apps Script</span>
+                          <p className="text-[11px] text-zinc-500 font-mono">
+                            {hasGasUrl ? "Web App Terhubung" : "Belum diatur (Lokal)"}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                            hasGasUrl
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          }`}
+                        >
+                          {hasGasUrl ? "Sinkron" : "Lokal"}
+                        </span>
+                      </div>
+                      <div className="bg-[#121214] border border-[#27272a] p-3 rounded-xl flex items-center justify-between">
+                        <div>
+                          <span className="text-xs text-zinc-200">Google Sheets Dashboard</span>
+                          <p className="text-[11px] text-zinc-500 font-mono">Viewer (gviz)</p>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-mono">
+                          Siap
+                        </span>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("workflow")}
-                      className="text-xs text-emerald-400 hover:underline"
+                      onClick={() => setSheetsModalOpen(true)}
+                      className="text-xs text-emerald-400 hover:underline flex items-center gap-1"
                     >
-                      Lihat Workflow →
+                      Setup Apps Script & Sheets →
                     </button>
                   </div>
 
@@ -287,12 +287,6 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "workflow" && (
-            <div className="space-y-6 animate-in fade-in-50 duration-200">
-              <N8nWorkflowViewer />
-            </div>
-          )}
-
           {activeTab === "structure" && (
             <div className="space-y-6 animate-in fade-in-50 duration-200">
               <FolderStructureGuide />
@@ -301,12 +295,11 @@ export default function App() {
         </div>
       </main>
 
-      <CorsGuideModal open={corsModalOpen} onOpenChange={setCorsModalOpen} />
       <GoogleSheetsGuideModal open={sheetsModalOpen} onOpenChange={setSheetsModalOpen} />
 
       <footer className="border-t border-[#27272a] bg-[#09090b] h-12 px-4 sm:px-8 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
-        <span>© 2026 Money Tracker</span>
-        <span className="hidden sm:block">v2.4.0</span>
+        <span>© 2026 Money Tracker (Direct Gemini & Sheets)</span>
+        <span className="hidden sm:block">v3.0.0</span>
       </footer>
     </div>
   );

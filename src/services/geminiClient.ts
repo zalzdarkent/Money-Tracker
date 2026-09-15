@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { ExpenseItem, ReceiptScanResult } from "@/src/types";
 import { parseExpenseTextLocally } from "./geminiParser";
 
@@ -20,7 +19,7 @@ export function getGeminiApiKey(): string {
 }
 
 /**
- * Helper to get current Gemini Model (default: gemini-3.6-flash)
+ * Helper to get current Gemini Model (default: gemini-1.5-flash or gemini-2.0-flash)
  */
 export function getGeminiModel(): string {
   if (typeof window !== "undefined") {
@@ -31,7 +30,7 @@ export function getGeminiModel(): string {
   }
   return (
     (import.meta as any).env?.VITE_GEMINI_MODEL ||
-    "gemini-3.6-flash"
+    "gemini-1.5-flash"
   );
 }
 
@@ -59,19 +58,6 @@ export function setGeminiApiKey(key: string): void {
       localStorage.removeItem("aether_gemini_api_key");
     }
   }
-}
-
-/**
- * Returns an instance of GoogleGenAI SDK
- */
-function createGeminiClient(): GoogleGenAI {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error(
-      "Gemini API Key belum dikonfigurasi. Silakan tambahkan VITE_GEMINI_API_KEY di file .env atau masukkan di pengaturan."
-    );
-  }
-  return new GoogleGenAI({ apiKey });
 }
 
 /**
@@ -129,12 +115,53 @@ function safeJsonParse<T>(rawText: string, fallback: T): T {
 }
 
 /**
+ * Call Gemini REST API directly using standard browser fetch.
+ * Zero external SDK, zero server overhead.
+ */
+async function callGeminiApi(
+  model: string,
+  apiKey: string,
+  parts: any[]
+): Promise<string> {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(`Gemini API error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return text;
+}
+
+/**
  * Scans a receipt / invoice / shopping bill image using Gemini Vision Flash
  */
 export async function scanReceiptWithGemini(
   imageDataUrlOrBase64: string
 ): Promise<ReceiptScanResult> {
-  const ai = createGeminiClient();
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error(
+      "Gemini API Key belum dikonfigurasi. Masukkan API Key di pengaturan atau di file .env."
+    );
+  }
+
   const { base64, mimeType } = cleanBase64(imageDataUrlOrBase64);
   const todayStr = getTodayIso();
 
@@ -160,31 +187,24 @@ Harap kembalikan HANYA format JSON valid tanpa format markdown lain.`;
 
   const selectedModel = getGeminiModel();
   const preferredModels = Array.from(
-    new Set([selectedModel, "gemini-3.6-flash"])
+    new Set([selectedModel, "gemini-1.5-flash", "gemini-2.0-flash"])
   );
 
   let lastError: any = null;
 
   for (const model of preferredModels) {
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [
-          {
-            inlineData: {
-              data: base64,
-              mimeType,
-            },
+      const parts = [
+        {
+          inlineData: {
+            mimeType,
+            data: base64,
           },
-          prompt,
-        ],
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.1,
         },
-      });
+        { text: prompt },
+      ];
 
-      const text = response.text || "";
+      const text = await callGeminiApi(model, apiKey, parts);
       const parsed = safeJsonParse<any>(text, null);
 
       if (parsed && typeof parsed === "object") {
@@ -229,7 +249,7 @@ Harap kembalikan HANYA format JSON valid tanpa format markdown lain.`;
 }
 
 /**
- * Super-fast direct text parsing using Gemini Flash in browser (~1 second response).
+ * Super-fast direct text parsing using Gemini Flash in browser (~0.8 - 1.2 detik).
  * Automatically falls back to local regex parser if offline or error occurs.
  */
 export async function parseExpenseTextWithGemini(
@@ -244,9 +264,7 @@ export async function parseExpenseTextWithGemini(
   }
 
   try {
-    const ai = createGeminiClient();
     const todayStr = getTodayIso();
-
     const prompt = `Anda adalah asisten AI akuntansi pribadi.
 Tanggal referensi HARI INI adalah: ${todayStr} (WIB).
 Jika ada kata 'tadi' / 'hari ini', gunakan ${todayStr}.
@@ -265,27 +283,22 @@ Teks pengguna:
 Kembalikan HANYA array JSON valid.`;
 
     const model = getGeminiModel();
+    const parts = [{ text: prompt }];
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
-    });
+    const rawText = await callGeminiApi(model, apiKey, parts);
+    const parsed = safeJsonParse<any[]>(rawText, []);
 
-    const parsed = safeJsonParse<any[]>(response.text || "", []);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map((item: any) => ({
-        tanggal: String(item.tanggal || todayStr),
-        kategori: String(item.kategori || "Lain-lain"),
-        deskripsi: String(item.deskripsi || "Pengeluaran"),
-        jumlah: Math.round(Number(item.jumlah) || 0),
-      })).filter((it) => it.jumlah > 0 && it.deskripsi);
+      return parsed
+        .map((item: any) => ({
+          tanggal: String(item.tanggal || todayStr),
+          kategori: String(item.kategori || "Lain-lain"),
+          deskripsi: String(item.deskripsi || "Pengeluaran"),
+          jumlah: Math.round(Number(item.jumlah) || 0),
+        }))
+        .filter((it) => it.jumlah > 0 && it.deskripsi);
     }
 
-    // Fallback to local regex parser if AI returned empty array
     return parseExpenseTextLocally(text, baseDate);
   } catch (err) {
     console.warn("Direct Gemini parsing gagal, beralih ke parser lokal:", err);

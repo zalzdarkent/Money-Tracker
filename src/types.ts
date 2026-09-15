@@ -43,11 +43,7 @@ export interface ExpenseRecord {
   items: ExpenseItem[];
   totalAmount: number;
   createdAt: string;
-<<<<<<< HEAD
-  source: "n8n_webhook" | "gemini_direct" | "mock_simulation" | "receipt_scan";
-=======
-  source: "n8n_webhook" | "gemini_direct" | "mock_simulation" | "photo_scan";
->>>>>>> e83da5218875dbd8e1a1655e95ae82bb57f04977
+  source: "google_sheets_gas" | "n8n_webhook" | "gemini_direct" | "mock_simulation" | "receipt_scan" | "photo_scan";
   status: "success" | "failed";
   receiptImage?: string; // Base64 thumbnail if available
 }

@@ -6,16 +6,22 @@ import { CodeBlock } from "@/src/components/ui/code-block";
 export function FolderStructureGuide() {
   const tree = `money-tracker/
 ├── src/
-│   ├── App.tsx
-│   ├── types.ts
-│   ├── data/n8nWorkflow.ts
-│   ├── services/geminiParser.ts
+│   ├── App.tsx                       # Dashboard & root UI
+│   ├── types.ts                      # Tipe data expense & receipt
+│   ├── data/
+│   │   └── prompts.ts                # Contoh kalimat cepat
+│   ├── services/
+│   │   ├── geminiClient.ts           # Gemini SDK & Scan Struk Vision
+│   │   ├── geminiParser.ts           # Fallback local regex parser
+│   │   └── googleSheetsService.ts    # Google Sheets (gviz read & GAS write)
 │   └── components/
-│       ├── ExpenseForm.tsx
-│       ├── ExpenseResultCard.tsx
-│       ├── SheetsHistoryDashboard.tsx
-│       ├── HistoryList.tsx
-│       └── ui/
+│       ├── ExpenseForm.tsx           # Form input teks & modal scan
+│       ├── ReceiptScannerModal.tsx   # Scanner struk belanja Gemini Vision
+│       ├── ExpenseResultCard.tsx     # Card hasil ekstraksi AI
+│       ├── SheetsHistoryDashboard.tsx# Dashboard & analitik riwayat
+│       ├── HistoryList.tsx           # Riwayat transaksi tersimpan
+│       ├── GoogleSheetsGuideModal.tsx# Panduan 1-klik Apps Script
+│       └── ui/                       # Komponen UI modern
 └── vite.config.ts`;
 
   return (
@@ -26,8 +32,10 @@ export function FolderStructureGuide() {
             <FolderTree className="w-4 h-4" />
           </div>
           <div>
-            <CardTitle className="text-base font-semibold text-white">Struktur Project</CardTitle>
-            <CardDescription className="text-xs text-zinc-400">Struktur folder utama.</CardDescription>
+            <CardTitle className="text-base font-semibold text-white">Arsitektur & Struktur Project</CardTitle>
+            <CardDescription className="text-xs text-zinc-400">
+              Direct Gemini AI + Google Apps Script (Zero Server, Zero n8n).
+            </CardDescription>
           </div>
         </div>
       </CardHeader>

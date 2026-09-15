@@ -24,6 +24,58 @@ export function getLocalDateString(d: Date = new Date()): string {
 }
 
 /**
+ * Helper to get Google Apps Script Web App URL from localStorage or environment
+ */
+export function getGoogleScriptUrl(): string {
+  if (typeof window !== "undefined") {
+    const custom = localStorage.getItem("aether_google_script_url");
+    if (custom && custom.trim()) return custom.trim();
+  }
+  return (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL || "";
+}
+
+/**
+ * Save Google Apps Script Web App URL into localStorage
+ */
+export function setGoogleScriptUrl(url: string): void {
+  if (typeof window !== "undefined") {
+    if (url.trim()) {
+      localStorage.setItem("aether_google_script_url", url.trim());
+    } else {
+      localStorage.removeItem("aether_google_script_url");
+    }
+  }
+}
+
+/**
+ * Directly append expense items to Google Sheets via Google Apps Script Web App (doPost).
+ * Zero-server, no n8n required. Uses text/plain to prevent CORS preflight blocks.
+ */
+export async function appendExpensesToGoogleSheets(
+  items: ExpenseItem[]
+): Promise<{ success: boolean; error?: string }> {
+  const scriptUrl = getGoogleScriptUrl();
+  if (!scriptUrl) {
+    return { success: false, error: "Google Apps Script Web App URL belum dikonfigurasi." };
+  }
+
+  try {
+    await fetch(scriptUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(items),
+    });
+    return { success: true };
+  } catch (err: any) {
+    console.error("Gagal append ke Google Sheets via Apps Script:", err);
+    return { success: false, error: err.message || "Gagal menghubungi Google Apps Script." };
+  }
+}
+
+/**
  * Parses Google Visualization API (gviz) JSON response into structured ExpenseItems.
  * Works seamlessly with public "Viewer" access on Google Sheets with anti-cache headers.
  */
