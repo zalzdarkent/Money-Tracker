@@ -5,8 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
-  if (!token || !process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) return res.status(401).json({ error: "Login required" });
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  const supabaseUrl = process.env.VITE_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.VITE_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!token || !supabaseUrl || !supabaseKey) return res.status(401).json({ error: "Login required" });
+  const supabase = createClient(supabaseUrl, supabaseKey);
   const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return res.status(401).json({ error: "Invalid session" });
   if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "GEMINI_API_KEY missing" });
