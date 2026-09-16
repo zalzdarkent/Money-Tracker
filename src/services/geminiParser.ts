@@ -96,7 +96,10 @@ export function parseExpenseTextLocally(text: string, baseDate: Date = new Date(
       deskripsi = deskripsi.replace(priceMatchedStr, "");
     }
     deskripsi = deskripsi
-      .replace(/\b(kemarin lusa|2 hari lalu|kemarin|kmrn|tadi|hari ini|barusan|beli|bayar|isi|pesan|buat|untuk|ke|rp|idr|sama)\b/gi, "")
+      .replace(
+        /\b(kemarin lusa|2 hari lalu|kemarin|kmrn|tadi|hari ini|barusan|aku|saya|gw|gua|gue|ane|ku|daku|kita|kami|dia|beli|dibeli|membeli|bayar|membayar|isi|ngisi|pesan|memesan|order|buat|untuk|ke|rp|idr|sama|dan|lalu|seharga|total|ongkir|biaya)\b/gi,
+        ""
+      )
       .replace(/[^\w\s-]/g, "")
       .replace(/\s+/g, " ")
       .trim();
@@ -104,8 +107,12 @@ export function parseExpenseTextLocally(text: string, baseDate: Date = new Date(
     if (!deskripsi) {
       deskripsi = part.trim();
     }
-    // Capitalize first letter
-    deskripsi = deskripsi.charAt(0).toUpperCase() + deskripsi.slice(1);
+    // Title Case formatting
+    deskripsi = deskripsi
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
 
     // Determine category
     let kategori = "Lain-lain";
@@ -128,8 +135,31 @@ export function parseExpenseTextLocally(text: string, baseDate: Date = new Date(
       lower.includes("ayam") ||
       lower.includes("mie") ||
       lower.includes("bakso") ||
+      lower.includes("baso") ||
+      lower.includes("tahu") ||
+      lower.includes("tempe") ||
+      lower.includes("somay") ||
+      lower.includes("siomay") ||
+      lower.includes("batagor") ||
+      lower.includes("cilok") ||
+      lower.includes("cireng") ||
+      lower.includes("seblak") ||
       lower.includes("sate") ||
-      lower.includes("martabak")
+      lower.includes("martabak") ||
+      lower.includes("soto") ||
+      lower.includes("rawon") ||
+      lower.includes("bebek") ||
+      lower.includes("ikan") ||
+      lower.includes("pecel") ||
+      lower.includes("burger") ||
+      lower.includes("pizza") ||
+      lower.includes("teh") ||
+      lower.includes("es") ||
+      lower.includes("jus") ||
+      lower.includes("boba") ||
+      lower.includes("jajan") ||
+      lower.includes("cemilan") ||
+      lower.includes("kuliner")
     ) {
       kategori = "Makanan & Minuman";
     } else if (

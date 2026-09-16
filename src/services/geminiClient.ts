@@ -242,7 +242,7 @@ Jika ada kata 'kemarin lusa' / '2 hari lalu', gunakan 2 hari sebelum ${todayStr}
 Ekstrak teks pengeluaran bebas bahasa Indonesia berikut menjadi JSON Array of Objects dengan key:
 - tanggal: string format YYYY-MM-DD
 - kategori: pilih salah satu dari ["Makanan & Minuman", "Transportasi", "Belanja Kebutuhan", "Tagihan & Utilitas", "Hiburan & Gaya Hidup", "Kesehatan", "Pendidikan & Kerja", "Lain-lain"]
-- deskripsi: nama pengeluaran rapi
+- deskripsi: nama item/jasa yang bersih tanpa kata subjek/verba (seperti 'aku', 'saya', 'beli', 'kemarin', dsb) dalam Title Case (contoh: "Tahu Baso", "Kopi Susu")
 - jumlah: angka bulat integer dalam Rupiah
 
 Teks pengguna:
