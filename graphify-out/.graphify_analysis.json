@@ -1,0 +1,380 @@
+{
+  "communities": {
+    "0": [
+      "api_gemini",
+      "api_gemini_handler",
+      "package",
+      "package_devdependencies",
+      "package_devdependencies_autoprefixer",
+      "package_devdependencies_esbuild",
+      "package_devdependencies_tailwindcss",
+      "package_devdependencies_tsx",
+      "package_devdependencies_types_node",
+      "package_devdependencies_typescript",
+      "package_name",
+      "package_private",
+      "package_scripts",
+      "package_scripts_build",
+      "package_scripts_dev",
+      "package_scripts_lint",
+      "package_scripts_preview",
+      "package_type",
+      "package_version",
+      "ref_autoprefixer",
+      "ref_canvas_confetti",
+      "ref_clsx",
+      "ref_dotenv",
+      "ref_esbuild",
+      "ref_google_generative_ai",
+      "ref_motion",
+      "ref_react_dom",
+      "ref_supabase_supabase_js",
+      "ref_tailwind_merge",
+      "ref_tailwindcss",
+      "ref_tailwindcss_vite",
+      "ref_tsx",
+      "ref_types_canvas_confetti",
+      "ref_types_node",
+      "ref_typescript",
+      "ref_vercel_node",
+      "ref_vite",
+      "ref_vitejs_plugin_react",
+      "vite_config"
+    ],
+    "1": [
+      "ref_class_variance_authority",
+      "ref_lucide_react",
+      "src_components_googlesheetsguidemodal",
+      "src_components_googlesheetsguidemodal_googlesheetsguidemodalprops",
+      "src_components_receiptscannermodal",
+      "src_components_receiptscannermodal_categories",
+      "src_components_ui_alert",
+      "src_components_ui_alert_alert",
+      "src_components_ui_alert_alertdescription",
+      "src_components_ui_alert_alerttitle",
+      "src_components_ui_alert_alertvariants",
+      "src_components_ui_button",
+      "src_components_ui_button_button",
+      "src_components_ui_button_buttonprops",
+      "src_components_ui_button_buttonvariants",
+      "src_components_ui_dialog",
+      "src_components_ui_dialog_dialog",
+      "src_components_ui_dialog_dialogdescription",
+      "src_components_ui_dialog_dialogfooter",
+      "src_components_ui_dialog_dialogheader",
+      "src_components_ui_dialog_dialogprops",
+      "src_components_ui_dialog_dialogtitle",
+      "src_components_ui_input",
+      "src_components_ui_input_input",
+      "src_components_ui_input_inputprops",
+      "src_components_ui_tabs",
+      "src_components_ui_tabs_tabs",
+      "src_components_ui_tabs_tabscontent",
+      "src_components_ui_tabs_tabscontext",
+      "src_components_ui_tabs_tabscontexttype",
+      "src_components_ui_tabs_tabslist",
+      "src_components_ui_tabs_tabstrigger",
+      "src_lib_utils_cn"
+    ],
+    "2": [
+      "src_app",
+      "src_app_app",
+      "src_app_valid_tabs",
+      "src_components_expenseresultcard_expenseresultcard",
+      "src_components_folderstructureguide_folderstructureguide",
+      "src_components_historylist_historylist",
+      "src_components_sheetshistorydashboard",
+      "src_components_sheetshistorydashboard_sheetshistorydashboard",
+      "src_components_sheetshistorydashboard_sheetshistorydashboardprops",
+      "src_components_sheetshistorydashboard_sortdirection",
+      "src_components_sheetshistorydashboard_sortfield",
+      "src_components_ui_badge_getcategorybadgevariant",
+      "src_components_ui_date_picker",
+      "src_components_ui_date_picker_datepicker",
+      "src_components_ui_date_picker_datepickerprops",
+      "src_components_ui_toaster",
+      "src_components_ui_toaster_toaster",
+      "src_components_ui_toaster_toasterprops",
+      "src_components_ui_toaster_toastitem",
+      "src_components_ui_toaster_toastitemprops",
+      "src_components_ui_toaster_toastmessage",
+      "src_lib_utils_formatrupiah",
+      "src_main",
+      "src_services_googlesheetsservice",
+      "src_services_googlesheetsservice_calculateanalytics",
+      "src_services_googlesheetsservice_fetchgooglesheetsdata",
+      "src_services_googlesheetsservice_filterrecordsbydate",
+      "src_services_googlesheetsservice_getlocaldatestring",
+      "src_services_googlesheetsservice_googlesheetsrecord",
+      "src_services_googlesheetsservice_sheetsanalytics"
+    ],
+    "3": [
+      "ref_react",
+      "src_components_expenseresultcard",
+      "src_components_expenseresultcard_expenseresultcardprops",
+      "src_components_folderstructureguide",
+      "src_components_historylist",
+      "src_components_historylist_flatrow",
+      "src_components_historylist_sortdirection",
+      "src_components_historylist_sortfield",
+      "src_components_ui_badge",
+      "src_components_ui_badge_badge",
+      "src_components_ui_badge_badgeprops",
+      "src_components_ui_badge_badgevariants",
+      "src_components_ui_card",
+      "src_components_ui_card_card",
+      "src_components_ui_card_cardcontent",
+      "src_components_ui_card_carddescription",
+      "src_components_ui_card_cardheader",
+      "src_components_ui_card_cardtitle",
+      "src_components_ui_code_block",
+      "src_components_ui_code_block_codeblock",
+      "src_components_ui_code_block_codeblockprops",
+      "src_components_ui_data_table_pagination",
+      "src_components_ui_data_table_pagination_datatablepagination",
+      "src_components_ui_data_table_pagination_datatablepaginationprops",
+      "src_components_ui_data_table_pagination_generatepaginationrange",
+      "src_lib_utils",
+      "src_lib_utils_formatdateindo",
+      "src_types_webhookresponse"
+    ],
+    "4": [
+      "src_components_expenseform",
+      "src_components_expenseform_expenseform",
+      "src_components_googlesheetsguidemodal_googlesheetsguidemodal",
+      "src_components_receiptscannermodal_receiptscannermodal",
+      "src_components_ui_card_cardfooter",
+      "src_components_ui_textarea",
+      "src_components_ui_textarea_textarea",
+      "src_components_ui_textarea_textareaprops",
+      "src_data_prompts",
+      "src_data_prompts_sample_prompts",
+      "src_services_geminiclient",
+      "src_services_geminiclient_callgeminiapi",
+      "src_services_geminiclient_cleanbase64",
+      "src_services_geminiclient_getgeminiapikey",
+      "src_services_geminiclient_getgeminimodel",
+      "src_services_geminiclient_gettodayiso",
+      "src_services_geminiclient_parseexpensetextwithgemini",
+      "src_services_geminiclient_safejsonparse",
+      "src_services_geminiclient_scanreceiptwithgemini",
+      "src_services_geminiclient_setgeminiapikey",
+      "src_services_geminiclient_setgeminimodel",
+      "src_services_geminiparser",
+      "src_services_geminiparser_formatdateiso",
+      "src_services_geminiparser_parseexpensetextlocally",
+      "src_services_googlesheetsservice_appendexpensestogooglesheets",
+      "src_services_googlesheetsservice_getgooglescripturl",
+      "src_services_googlesheetsservice_setgooglescripturl"
+    ],
+    "5": [
+      "src_components_photouploadinput",
+      "src_components_photouploadinput_photouploadinput",
+      "src_components_photouploadinput_photouploadinputprops",
+      "src_components_photouploadinput_scanstate",
+      "src_services_geminiproxy",
+      "src_services_geminiproxy_callgeminiproxy",
+      "src_services_geminivisionparser",
+      "src_services_geminivisionparser_buildrequestpayload",
+      "src_services_geminivisionparser_categories",
+      "src_services_geminivisionparser_extractjsonfromtext",
+      "src_services_geminivisionparser_filetobase64",
+      "src_services_geminivisionparser_normalizeitems",
+      "src_services_geminivisionparser_parseexpensefromimage",
+      "src_types",
+      "src_types_expenseitem",
+      "src_types_n8nnodeconfig",
+      "src_types_receiptitem",
+      "src_types_receiptscanresult",
+      "src_types_webhookpayload"
+    ],
+    "6": [
+      "package_dependencies",
+      "package_dependencies_canvas_confetti",
+      "package_dependencies_class_variance_authority",
+      "package_dependencies_clsx",
+      "package_dependencies_dotenv",
+      "package_dependencies_google_generative_ai",
+      "package_dependencies_lucide_react",
+      "package_dependencies_motion",
+      "package_dependencies_react",
+      "package_dependencies_react_dom",
+      "package_dependencies_supabase_supabase_js",
+      "package_dependencies_tailwind_merge",
+      "package_dependencies_tailwindcss_vite",
+      "package_dependencies_types_canvas_confetti",
+      "package_dependencies_vercel_node",
+      "package_dependencies_vite",
+      "package_dependencies_vitejs_plugin_react"
+    ],
+    "7": [
+      "tsconfig",
+      "tsconfig_compileroptions",
+      "tsconfig_compileroptions_allowimportingtsextensions",
+      "tsconfig_compileroptions_allowjs",
+      "tsconfig_compileroptions_experimentaldecorators",
+      "tsconfig_compileroptions_isolatedmodules",
+      "tsconfig_compileroptions_jsx",
+      "tsconfig_compileroptions_lib",
+      "tsconfig_compileroptions_module",
+      "tsconfig_compileroptions_moduledetection",
+      "tsconfig_compileroptions_moduleresolution",
+      "tsconfig_compileroptions_noemit",
+      "tsconfig_compileroptions_paths",
+      "tsconfig_compileroptions_skiplibcheck",
+      "tsconfig_compileroptions_target",
+      "tsconfig_compileroptions_usedefineforclassfields"
+    ],
+    "8": [
+      "opencode",
+      "opencode_9router_name",
+      "opencode_9router_npm",
+      "opencode_9router_options",
+      "opencode_options_apikey",
+      "opencode_options_baseurl",
+      "opencode_plugin",
+      "opencode_provider",
+      "opencode_provider_9router",
+      "opencode_schema"
+    ],
+    "9": [
+      "src_components_authgate",
+      "src_components_authgate_authgate",
+      "src_components_authgate_authgate_submit",
+      "src_lib_supabase",
+      "src_lib_supabase_supabase"
+    ],
+    "10": [
+      "src_components_expenseform_expenseformprops",
+      "src_components_historylist_historylistprops",
+      "src_components_receiptscannermodal_receiptscannermodalprops",
+      "src_types_expenserecord"
+    ]
+  },
+  "cohesion": {
+    "0": 0.05668016194331984,
+    "1": 0.13636363636363635,
+    "2": 0.13793103448275862,
+    "3": 0.15608465608465608,
+    "4": 0.15669515669515668,
+    "5": 0.17543859649122806,
+    "6": 0.11764705882352941,
+    "7": 0.125,
+    "8": 0.2,
+    "9": 0.5,
+    "10": 0.5
+  },
+  "gods": [
+    {
+      "id": "src_lib_utils_cn",
+      "label": "cn()",
+      "degree": 33
+    },
+    {
+      "id": "ref_react",
+      "label": "react",
+      "degree": 24
+    },
+    {
+      "id": "ref_lucide_react",
+      "label": "lucide-react",
+      "degree": 16
+    },
+    {
+      "id": "src_lib_utils_formatrupiah",
+      "label": "formatRupiah()",
+      "degree": 15
+    },
+    {
+      "id": "tsconfig_compileroptions",
+      "label": "compilerOptions",
+      "degree": 15
+    },
+    {
+      "id": "src_services_googlesheetsservice_getlocaldatestring",
+      "label": "getLocalDateString()",
+      "degree": 11
+    },
+    {
+      "id": "src_components_expenseform_expenseform",
+      "label": "ExpenseForm()",
+      "degree": 10
+    },
+    {
+      "id": "src_components_ui_button_button",
+      "label": "Button",
+      "degree": 10
+    },
+    {
+      "id": "src_types_expenseitem",
+      "label": "ExpenseItem",
+      "degree": 10
+    },
+    {
+      "id": "src_services_geminivisionparser_parseexpensefromimage",
+      "label": "parseExpenseFromImage()",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "App()",
+      "target": "getGoogleScriptUrl()",
+      "source_files": [
+        "src/App.tsx",
+        "src/services/googleSheetsService.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "ExpenseFormProps",
+      "target": "ExpenseRecord",
+      "source_files": [
+        "src/components/ExpenseForm.tsx",
+        "src/types.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "peripheral node `ExpenseFormProps` unexpectedly reaches hub `ExpenseRecord`"
+    },
+    {
+      "source": "ExpenseForm()",
+      "target": "getLocalDateString()",
+      "source_files": [
+        "src/components/ExpenseForm.tsx",
+        "src/services/googleSheetsService.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "bridges separate communities"
+    },
+    {
+      "source": "HistoryListProps",
+      "target": "ExpenseRecord",
+      "source_files": [
+        "src/components/HistoryList.tsx",
+        "src/types.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "peripheral node `HistoryListProps` unexpectedly reaches hub `ExpenseRecord`"
+    },
+    {
+      "source": "PhotoUploadInputProps",
+      "target": "ExpenseItem",
+      "source_files": [
+        "src/components/PhotoUploadInput.tsx",
+        "src/types.ts"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "peripheral node `PhotoUploadInputProps` unexpectedly reaches hub `ExpenseItem`"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

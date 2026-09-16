@@ -11,7 +11,8 @@ import { Button } from "@/src/components/ui/button";
 import { ExpenseRecord } from "@/src/types";
 import { formatRupiah } from "@/src/lib/utils";
 import { fetchGoogleSheetsData, getLocalDateString, getGoogleScriptUrl } from "@/src/services/googleSheetsService";
-import { Table, BookOpen, ReceiptText, BrainCircuit, BarChart3, Zap } from "lucide-react";
+import { supabase } from "@/src/lib/supabase";
+import { Table, BookOpen, ReceiptText, BrainCircuit, BarChart3, Zap, LogOut } from "lucide-react";
 
 const VALID_TABS = ["tracker", "sheets-history", "structure"];
 
@@ -178,6 +179,18 @@ export default function App() {
               <Table className="w-3.5 h-3.5 mr-1 text-emerald-400" />
               Setup Google Sheets
             </Button>
+            {supabase && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => supabase.auth.signOut()}
+                className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-rose-400 hover:border-rose-500/30"
+                title="Keluar"
+              >
+                <LogOut className="w-3.5 h-3.5 mr-1 text-zinc-400" />
+                Logout
+              </Button>
+            )}
           </div>
         </div>
       </header>
