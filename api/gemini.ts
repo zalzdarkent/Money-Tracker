@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genai.getGenerativeModel({ model: req.body.model || "gemini-1.5-flash" });
+    const model = genai.getGenerativeModel({ model: req.body.model || "gemini-3.6-flash" });
     const result = await model.generateContent({ contents: req.body.contents, generationConfig: req.body.generationConfig });
     return res.status(200).json({ text: result.response.text() });
   } catch (error: any) {

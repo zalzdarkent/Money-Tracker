@@ -20,7 +20,7 @@ export function getGeminiApiKey(): string {
 }
 
 /**
- * Helper to get current Gemini Model (default: gemini-1.5-flash or gemini-2.0-flash)
+ * Helper to get current Gemini Model (default: gemini-3.6-flash)
  */
 export function getGeminiModel(): string {
   if (typeof window !== "undefined") {
@@ -31,7 +31,7 @@ export function getGeminiModel(): string {
   }
   return (
     (import.meta as any).env?.VITE_GEMINI_MODEL ||
-    "gemini-1.5-flash"
+    "gemini-3.6-flash"
   );
 }
 
@@ -162,7 +162,7 @@ Harap kembalikan HANYA format JSON valid tanpa format markdown lain.`;
 
   const selectedModel = getGeminiModel();
   const preferredModels = Array.from(
-    new Set([selectedModel, "gemini-1.5-flash", "gemini-2.0-flash"])
+    new Set([selectedModel, "gemini-3.6-flash"].filter(Boolean))
   );
 
   let lastError: any = null;

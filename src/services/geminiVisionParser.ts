@@ -204,7 +204,7 @@ export async function parseExpenseFromImage(imageFile: File): Promise<{
   const payload = buildRequestPayload(base64, mimeType, todayDate);
 
   // Extract text from Gemini response
-  const rawText = await callGeminiProxy({ model: "gemini-1.5-flash", ...payload });
+  const rawText = await callGeminiProxy({ model: "gemini-3.6-flash", ...payload });
 
   if (!rawText.trim()) {
     throw new Error(
