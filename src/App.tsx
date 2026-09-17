@@ -288,7 +288,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  <HistoryList records={history} onClear={handleClearHistory} />
+                  {/* <HistoryList records={history} onClear={handleClearHistory} /> */}
                 </div>
               </div>
             </div>
