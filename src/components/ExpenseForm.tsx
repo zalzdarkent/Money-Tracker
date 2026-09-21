@@ -219,7 +219,7 @@ export function ExpenseForm({ onSuccess, onOpenSheetsGuide }: ExpenseFormProps) 
             </div>
 
             {/* Sample Prompts */}
-            <div className="space-y-1.5">
+            {/* <div className="space-y-1.5">
               <span className="text-[11px] text-zinc-500">Contoh cepat:</span>
               <div className="flex flex-wrap gap-1.5">
                 {SAMPLE_PROMPTS.slice(0, 4).map((sample, idx) => (
@@ -233,7 +233,7 @@ export function ExpenseForm({ onSuccess, onOpenSheetsGuide }: ExpenseFormProps) 
                   </button>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             {errorInfo && (
               <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 text-red-300 py-2.5">
