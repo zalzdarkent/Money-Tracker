@@ -59,3 +59,106 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
+
+/* ── Receipt scan animations ─────────────────────────────── */
+@keyframes scan-sweep {
+  0%   { top: 0%; }
+  50%  { top: calc(100% - 3px); }
+  100% { top: 0%; }
+}
+
+@keyframes scan-pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(1.9); opacity: 0;   }
+  100% { transform: scale(1.9); opacity: 0;   }
+}
+
+@keyframes scan-glitch {
+  0%, 90%, 100% { opacity: 1;   transform: translateX(0);    }
+  92%           { opacity: 0.8; transform: translateX(-2px); }
+  94%           { opacity: 0.9; transform: translateX(2px);  }
+  96%           { opacity: 0.7; transform: translateX(-1px); }
+  98%           { opacity: 1;   transform: translateX(0);    }
+}
+
+@keyframes scan-data-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1;   }
+  20%, 22%, 24%, 55%                      { opacity: 0.4; }
+}
+
+@keyframes scan-corner-pulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  50%      { opacity: 0.7; box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.4); }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.2; transform: translateY(0);    }
+  30%           { opacity: 1;   transform: translateY(-3px); }
+}
+
+.scan-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #10b981 20%, #6ee7b7 50%, #10b981 80%, transparent 100%);
+  box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.7), 0 0 20px 4px rgba(16, 185, 129, 0.3);
+  animation: scan-sweep 2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  pointer-events: none;
+}
+
+.scan-laser::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  bottom: 2px;
+  background: linear-gradient(to top, rgba(16, 185, 129, 0.08), transparent);
+  pointer-events: none;
+}
+
+.scan-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  animation: scan-corner-pulse 2s ease-in-out infinite;
+}
+.scan-corner-tl { top: 8px;  left: 8px;  border-top: 2px solid #10b981; border-left: 2px solid #10b981;  border-radius: 2px 0 0 0; }
+.scan-corner-tr { top: 8px;  right: 8px; border-top: 2px solid #10b981; border-right: 2px solid #10b981; border-radius: 0 2px 0 0; animation-delay: 0.5s; }
+.scan-corner-bl { bottom: 8px; left: 8px;  border-bottom: 2px solid #10b981; border-left: 2px solid #10b981;  border-radius: 0 0 0 2px; animation-delay: 1s; }
+.scan-corner-br { bottom: 8px; right: 8px; border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; border-radius: 0 0 2px 0; animation-delay: 1.5s; }
+
+.scan-glitch {
+  animation: scan-glitch 4s ease-in-out infinite;
+}
+
+.scan-data-flicker {
+  animation: scan-data-flicker 3s linear infinite;
+}
+
+.scan-pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(16, 185, 129, 0.6);
+  animation: scan-pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.typing-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-laser, .scan-corner, .scan-glitch, .scan-data-flicker, .scan-pulse-ring, .typing-dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}

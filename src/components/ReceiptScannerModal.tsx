@@ -13,7 +13,6 @@ import {
   UploadCloud,
   FileText,
   Sparkles,
-  Loader2,
   CheckCircle2,
   Trash2,
   Plus,
@@ -394,31 +393,56 @@ export function ReceiptScannerModal({
 
       {/* STEP 2: SCANNING ANIMATION */}
       {step === "scanning" && (
-        <div className="py-10 flex flex-col items-center justify-center text-center space-y-6">
-          <div className="relative w-52 h-64 rounded-xl border border-emerald-500/40 bg-[#121214] overflow-hidden shadow-2xl flex items-center justify-center">
+        <div className="py-8 flex flex-col items-center justify-center text-center space-y-6">
+          {/* Receipt card with scan overlay */}
+          <div className="relative w-52 h-64 rounded-xl border border-emerald-500/40 bg-[#0c0c0e] overflow-hidden shadow-[0_0_40px_rgba(16,185,129,0.15)] flex items-center justify-center">
             {imagePreview ? (
               <img
                 src={imagePreview}
                 alt="Struk Belanja"
-                className="w-full h-full object-cover opacity-60 filter grayscale contrast-125"
+                className="w-full h-full object-cover opacity-50 filter grayscale contrast-125 scan-glitch"
               />
             ) : (
-              <Receipt className="w-16 h-16 text-zinc-600" />
+              <Receipt className="w-16 h-16 text-zinc-700" />
             )}
 
-            {/* Glowing Laser Scan Bar */}
-            <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_15px_#10b981] animate-bounce duration-1000" />
-            <div className="absolute inset-0 bg-emerald-500/10 pointer-events-none" />
+            {/* Ambient emerald glow overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 via-transparent to-emerald-500/10 pointer-events-none" />
+
+            {/* Moving laser line */}
+            <div className="scan-laser" />
+
+            {/* Viewfinder corner brackets */}
+            <div className="scan-corner scan-corner-tl" />
+            <div className="scan-corner scan-corner-tr" />
+            <div className="scan-corner scan-corner-bl" />
+            <div className="scan-corner scan-corner-br" />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2 text-emerald-400 font-semibold text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Gemini Vision sedang membaca struk...
+          {/* Status text block */}
+          <div className="space-y-3">
+            {/* Pulsing icon + label */}
+            <div className="flex items-center justify-center gap-2.5">
+              <div className="relative flex items-center justify-center w-6 h-6">
+                <span className="scan-pulse-ring" />
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400 relative z-10" />
+              </div>
+              <span className="text-emerald-400 font-semibold text-sm scan-data-flicker">
+                Gemini Vision membaca struk
+              </span>
+              <span className="flex items-center gap-1 text-emerald-400">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </span>
             </div>
-            <p className="text-xs text-zinc-400 max-w-sm">
-              Mendeteksi nama merchant toko, tanggal struk, rincian barang, diskon, dan total akhir pengeluaran.
-            </p>
+
+            {/* Progress steps */}
+            <div className="flex flex-col items-center gap-1.5 text-[11px] text-zinc-500 font-mono">
+              <span className="text-emerald-500/80">✓ Gambar diterima</span>
+              <span className="text-emerald-400 scan-data-flicker">◌ Mendeteksi teks &amp; angka...</span>
+              <span className="text-zinc-600">◌ Menyusun data pengeluaran</span>
+            </div>
           </div>
         </div>
       )}

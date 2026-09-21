@@ -6,7 +6,6 @@ import {
   Camera,
   Upload,
   X,
-  Loader2,
   ImageIcon,
   Sparkles,
   CheckCircle,
@@ -200,35 +199,48 @@ export function PhotoUploadInput({ onExtracted, onError, disabled }: PhotoUpload
 
       {/* Scanning / Uploading State */}
       {(scanState === "uploading" || scanState === "scanning") && (
-        <div className="rounded-2xl border border-[#27272a] bg-[#121214] overflow-hidden">
-          {/* Image Preview */}
+        <div className="rounded-2xl border border-emerald-500/30 bg-[#0c0c0e] overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+          {/* Image Preview with scan overlay */}
           {previewUrl && (
             <div className="relative w-full max-h-48 overflow-hidden bg-black flex items-center justify-center">
               <img
                 src={previewUrl}
                 alt="Preview struk"
-                className="max-h-48 w-auto object-contain opacity-60"
+                className="max-h-48 w-auto object-contain opacity-50 scan-glitch"
               />
               {/* Scan animation overlay */}
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="scan-line" />
+                <div className="scan-laser" />
+                {/* Corner brackets */}
+                <div className="scan-corner scan-corner-tl" />
+                <div className="scan-corner scan-corner-tr" />
+                <div className="scan-corner scan-corner-bl" />
+                <div className="scan-corner scan-corner-br" />
               </div>
-              <div className="absolute inset-0 bg-[#09090b]/40 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-center px-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-emerald-400 animate-pulse" />
-                  </div>
-                  <p className="text-xs text-emerald-300 font-medium">{statusMessage}</p>
-                </div>
-              </div>
+              {/* Ambient glow */}
+              <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 via-transparent to-emerald-500/8 pointer-events-none" />
             </div>
           )}
-          {/* Loading dots */}
-          <div className="p-4 flex items-center gap-3">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-400 shrink-0" />
-            <div className="flex flex-col">
-              <span className="text-xs font-medium text-zinc-200">{statusMessage}</span>
-              <span className="text-[11px] text-zinc-500 font-mono">Gemini Vision AI · {scanState === "scanning" ? "Mengekstrak data..." : "Memuat gambar..."}</span>
+
+          {/* Status bar */}
+          <div className="p-3.5 flex items-center gap-3 border-t border-emerald-500/10">
+            {/* Pulse ring icon */}
+            <div className="relative flex items-center justify-center w-8 h-8 shrink-0">
+              <span className="scan-pulse-ring" />
+              <Sparkles className="w-4 h-4 text-emerald-400 relative z-10" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-medium text-zinc-200 flex items-center gap-1.5">
+                {statusMessage}
+                <span className="flex items-center gap-0.5 text-emerald-400">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </span>
+              </span>
+              <span className="text-[11px] text-zinc-500 font-mono scan-data-flicker">
+                Gemini Vision AI · {scanState === "scanning" ? "Mengekstrak data..." : "Memuat gambar..."}
+              </span>
             </div>
           </div>
         </div>
