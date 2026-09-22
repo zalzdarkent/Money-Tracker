@@ -79,7 +79,7 @@ export function TabsTrigger({
       className={cn(
         "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:pointer-events-none disabled:opacity-50 cursor-pointer gap-2",
         isActive
-          ? "bg-[#18181b] text-white shadow font-semibold border border-[#27272a]"
+          ? "bg-emerald-500 text-white shadow font-semibold border border-emerald-400"
           : "text-zinc-500 hover:text-zinc-300 hover:bg-[#18181b]/40",
         className
       )}
@@ -106,7 +106,7 @@ export function TabsContent({
   return (
     <div
       className={cn(
-        "mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 animate-in fade-in-50 duration-200",
+        "mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 animate-in fade-in-50 duration-300 ease-in-out",
         className
       )}
     >

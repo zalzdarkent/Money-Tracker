@@ -170,15 +170,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSheetsModalOpen(true)}
-              className="text-xs border-[#27272a] bg-[#121214] text-zinc-300 hover:text-white"
-            >
-              <Table className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-              Setup Google Sheets
-            </Button>
+            {/* Removed Setup Google Sheets button */}
             {supabase && (
               <Button
                 variant="outline"
